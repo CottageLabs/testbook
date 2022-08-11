@@ -1,0 +1,25 @@
+<ul>
+{% for suite in struct %}
+    <li>
+        {% if suite.suite == suite_name %}<strong>{% endif %}
+            {{ suite.suite }}
+        {% if suite.suite == suite_name %}</strong>{% endif %}
+        <ul>
+        {% for testset in suite.testsets %}
+            <li>
+                {% if testset.testset == testset_name %}<strong>{% endif %}
+                <a href="{{ testbook_base }}/{{ id_prefix }}.html">{{ testset.testset }}</a>
+                {% if testset.testset == testset_name %}</strong>{% endif %}
+                <ul>
+                    {% for test in testset.tests %}
+                        <li>
+                            <a href="{{ testbook_base }}/{{ id_prefix }}.html#{{ safe_id(test.title) }}">{{ test.title }}</a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </li>
+        {% endfor %}
+        </ul>
+    </li>
+{% endfor %}
+</ul>

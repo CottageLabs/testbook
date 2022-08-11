@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ suite_name }}: {{ testset_name }}</title>
+    <style>
+        .navigation {
+            width: 25%;
+            float: left;
+        }
+
+        .navigation ul {
+            list-style: none;
+            padding-left: 15px;
+            margin-top: 10px;
+        }
+
+        .navigation a {
+            text-decoration: none;
+            color: #000000;
+        }
+
+        .navigation li {
+            margin-bottom: 10px;
+        }
+
+        .tests {
+            width: 75%;
+            float:left;
+        }
+
+        td {
+            word-wrap: break-word;
+            max-width: 150px;
+        }
+
+        #action {
+            width: 50%
+        }
+
+        #result {
+            width: 50%;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+        }
+
+        h1 a, h2 a {
+            text-decoration: none;
+            color: #000000;
+        }
+        table {
+            border-spacing: 0;
+            width: 100%;
+        }
+        table thead {
+            font-weight: bold;
+        }
+        table td {
+            padding: 10px;
+            border: 1px solid;
+            vertical-align: top;
+
+        }
+
+        table td ul {
+            margin: 0;
+            list-style: none;
+            padding-left: 0;
+        }
+
+        hr {
+            margin-top: 30px;
+            margin-bottom: 30px;
+        }
+
+        .setup {
+            border: 1px solid #0000ff;
+            background: #aaaaff;
+            padding: 10px;
+            margin: 0 0 30px 0;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="navigation">
+        {% include("navigation.html") %}
+    </div>
+
+    <div class="tests">
+    <h1><a href="{{ testbook_base }}/{{id_prefix}}.html">{{ suite_name }}: {{ testset_name }}</a></h1>
+    <a href="{{ testbook_base }}/{{ id_prefix }}.csv">Download Test Suite CSV</a>
+
+    {% for test in tests %}
+        <h2><a href="{{ testbook_base }}/{{ id_prefix }}.html#{{ safe_id(test.title) }}" id="{{ safe_id(test.title) }}">{{ loop.index }}. {{ test.title }}</a></h2>
+
+        {% if test.context %}
+        <strong>Test context</strong>
+        <ul>
+        {% for key, value in test.context.items() %}
+            <li>{{key}}: {{value}}</li>
+        {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if test.setup %}
+        <div class="setup"><strong>Setup</strong>:
+            {% for s in test.setup %}
+                <p>{{ s }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <table>
+            <thead>
+                <tr>
+                    <td id="action">Action</td>
+                    <td id="result">Expected Result</td>
+                </tr>
+            </thead>
+            <tbody>
+            {% for step in test.steps %}
+                <tr>
+                    <td>
+                        {{ step.step }}
+                        {% if step.path %}
+                        <br><br>Application Link: <a href="{{ application_base }}{{ step.path }}" target="_blank">{{ application_base }}{{ step.path }}</a>
+                        {% endif %}
+                        {% if step.resource %}
+                        <br><br>Test Resource: <a href="{{ resource_base }}{{ step.resource }}" target="_blank">{{ resource_base }}{{ step.resource }}</a>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if step.results %}
+                        <ul>
+                            {% for result in step.results %}
+                                <li><input type="checkbox">{{ result }}</li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+
+        <hr>
+
+    {% endfor %}
+    </div>
+</body>
+</html>
