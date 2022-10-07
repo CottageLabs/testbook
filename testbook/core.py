@@ -110,35 +110,62 @@ def testset_csv(outdir, id, tests, config):
         idx = 0
         for test in tests:
             idx += 1
+            rows = test_rows(test, config, idx)
 
-            rows = []
-            rows.append([idx, "", test["title"]])
+            individual_filename = safe_id(id + "__" + str(idx))
+            individual_outdir = os.path.join(outdir, "test_csvs")
+            create_out_dir(individual_outdir)
+            individual_out = os.path.join(individual_outdir, individual_filename + ".csv")
 
-            step_id = 0
-            for step in test.get("steps", []):
-                step_id += 1
-                id = str(idx) + "." + str(step_id)
-
-                desc = step.get("step", "")
-                if "path" in step:
-                    desc += "\n\n{base}{path}".format(base=config.get("application_base", ""), path=step.get("path"))
-                if "resource" in step:
-                    desc += "\n\nTest Resource: {base}{path}".format(base=config.get("resource_base", ""), path=step.get("resource"))
-
-                result = ""
-                for r in step.get("results", []):
-                    result += "* {r}\n".format(r=r)
-
-                rows.append([
-                    id,
-                    test.get("context", {}).get("role", ""),
-                    desc,
-                    result
-                ])
-
-            rows.append([])
+            with open(individual_out, "w") as g:
+                iw = csv.writer(g)
+                iw.writerows(rows)
 
             writer.writerows(rows)
+            writer.writerow([])
+
+
+def test_rows(test, config, idx):
+    step_id = 0
+    rows = []
+    rows.append([
+        "----------",
+        "----------",
+        "----------",
+        "----------"
+    ])
+    rows.append([str(idx) + ".0.", "", test["title"]])
+
+    for step in test.get("steps", []):
+        step_id += 1
+        id = str(idx) + "." + str(step_id) + "."
+
+        desc = step.get("step", "")
+        if "path" in step:
+            desc += "\n\n{base}{path}".format(base=config.get("application_base", ""), path=step.get("path"))
+        if "resource" in step:
+            desc += "\n\nTest Resource: {base}{path}".format(base=config.get("resource_base", ""),
+                                                             path=step.get("resource"))
+
+        rows.append([
+            id,
+            test.get("context", {}).get("role", ""),
+            desc,
+            ""
+        ])
+
+        result_id = 0
+        for r in step.get("results", []):
+            result_id += 1
+            rid = id + str(result_id) + "."
+            rows.append([
+                rid,
+                test.get("context", {}).get("role", ""),
+                "",
+                r
+            ])
+
+    return rows
 
 
 def create_out_dir(outdir):
