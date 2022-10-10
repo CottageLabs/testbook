@@ -6,7 +6,7 @@
             data-add="Add All"
             data-remove="Remove All">Add All</button>
 </h1>
-<a href="testset_csvs/{{ id_prefix }}.csv">Download Test Suite CSV</a>
+<a href="testset_csvs/{{ id_prefix }}.csv">Download Testset</a>
 
 {% for test in tests %}
     <h2>
@@ -38,13 +38,17 @@
     <table>
         <thead>
             <tr>
+                <td id="step_id">ID</td>
                 <td id="action">Action</td>
                 <td id="result">Expected Result</td>
+                <td>&nbsp;</td>
             </tr>
         </thead>
         <tbody>
+        {% set test_id = loop.index %}
         {% for step in test.steps %}
             <tr>
+                <td>{{ test_id }}.{{ loop.index }}.</td>
                 <td>
                     {{ step.step }}
                     {% if step.path %}
@@ -54,16 +58,20 @@
                     <br><br>Test Resource: <a href="{{ resource_base }}{{ step.resource }}" target="_blank">{{ resource_base }}{{ step.resource }}</a>
                     {% endif %}
                 </td>
-                <td>
-                    {% if step.results %}
-                    <ul>
-                        {% for result in step.results %}
-                            <li><input type="checkbox">{{ result }}</li>
-                        {% endfor %}
-                    </ul>
-                    {% endif %}
-                </td>
+                <td>&nbsp;</td>
+                <td>&nbsp;</td>
             </tr>
+            {% if step.results %}
+                {% set step_id = loop.index %}
+                {% for result in step.results %}
+                    <tr>
+                        <td>{{ test_id }}.{{ step_id }}.{{ loop.index }}</td>
+                        <td>&nbsp;</td>
+                        <td>{{ result }}</td>
+                        <td><input type="checkbox"></td>
+                    </tr>
+                {% endfor %}
+            {% endif %}
         {% endfor %}
         </tbody>
     </table>

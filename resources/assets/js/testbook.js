@@ -95,7 +95,7 @@ testbook.receivedTestSetHTML = function(id, params) {
             let top = document.getElementById(params.test).offsetTop;
             window.scrollTo(0, top);
         }
-        
+
         history.pushState(null, null, "#" + params.target);
 
         $(".add-remove").off("click.AddRemove").on("click.AddRemove", testbook.toggleAddRemove);

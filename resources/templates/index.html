@@ -4,9 +4,15 @@
     <meta charset="UTF-8">
     <title>Testbook</title>
     <style>
+        .container {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: nowrap;
+            column-gap: 10px;
+        }
+
         .navigation {
-            width: 25%;
-            float: left;
+            flex-basis: 50%;
         }
 
         .navigation ul {
@@ -32,22 +38,27 @@
             text-decoration: underline;
         }
 
+        .column {
+
+        }
+
+        .control {
+            padding-top: 5px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #cccccc;
+        }
+
+        .control a {
+            padding-right: 10px;
+        }
+
         .tests {
-            width: 75%;
-            float:left;
+            padding-right: 10px;
         }
 
         td {
             word-wrap: break-word;
             max-width: 150px;
-        }
-
-        #action {
-            width: 50%
-        }
-
-        #result {
-            width: 50%;
         }
 
         body {
@@ -94,20 +105,24 @@
     </style>
 </head>
 <body>
-    <div class="navigation">
-        {% include("navigation.html") %}
-    </div>
+    <div class="container">
+        <div class="navigation">
+            {% include("navigation.html") %}
+        </div>
 
-    <div class="control">
-        <a href="/">Testbook</a>
-        <a href="#">selected (<span class="selected-count">0</span>)</a>
-        <a href="#" class="clear-selected">Clear all selected</a>
-        <a href="#" class="download-selection">Download selection</a>
-        <a href="all_tests.zip">Download all tests</a>
-    </div>
+        <div class="column">
+            <div class="control">
+                <a href="/">Testbook Home</a>
+                <a href="#">selected (<span class="selected-count">0</span>)</a>
+                <a href="#" class="clear-selected">Clear all selected</a>
+                <a href="#" class="download-selection">Download selection</a>
+                <a href="all_tests.zip">Download all tests</a>
+            </div>
 
-    <div class="tests" id="tests">
-        Select tests from navigation from the navigation panel
+            <div class="tests" id="tests">
+                Select tests from navigation from the navigation panel
+            </div>
+        </div>
     </div>
 
     <script type="application/javascript" src="assets/js/jquery-3.4.1.min.js"></script>
