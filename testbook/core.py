@@ -35,6 +35,9 @@ def read_structure(dir):
                 nav[tests["suite"]][tests["testset"]] = []
                 for test in tests["tests"]:
                     nav[tests["suite"]][tests["testset"]].append({
+                        "test_id": safe_id(test["title"]),
+                        "test_path": safe_id(tests["suite"]) + "/" + safe_id(tests["testset"]) + "/" + safe_id(test["title"]),
+                        "test_path_id": safe_id(tests["suite"]) + "__" + safe_id(tests["testset"]) + "__" + safe_id(test["title"]),
                         "title": test["title"],
                         "file": path
                     })
@@ -48,11 +51,15 @@ def read_structure(dir):
             tests = nav[s][ts]  # tests remain in file defined order
             tsstruct.append({
                 "testset": ts,
+                "testset_id": safe_id(ts),
+                "testset_path": safe_id(s) + "/" + safe_id(ts),
+                "testset_path_id": safe_id(s) + "__" + safe_id(ts),
                 "tests": tests
             })
 
         struct.append({
             "suite": s,
+            "suite_id": safe_id(s),
             "testsets": tsstruct
         })
 

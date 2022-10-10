@@ -1,29 +1,37 @@
 <ul>
 {% for suite in struct %}
     <li>
-        <span id="nav_{{ safe_id(suite.suite) }}" class="naventry">{{ suite.suite }}</span>
-        <button type="button" class="nav-add-remove-all" data-target="{{ safe_id(suite.suite) }}">+</button>
+        <span id="nav_{{ suite.suite_id }}" class="naventry">{{ suite.suite }}</span>
+        <button type="button" class="add-remove-all"
+                data-target="{{ suite.suite_id }}"
+                data-action="add"
+                data-add="+"
+                data-remove="-">+</button>
         <ul>
         {% for testset in suite.testsets %}
             <li>
-                <a href="{{ testbook_base }}/index.html#{{ safe_id(suite.suite) }}/{{ safe_id(testset.testset) }}"
+                <a href="index.html#{{ testset.testset_path }}"
                    class="navlink naventry"
-                   data-target="{{ safe_id(suite.suite) }}/{{ safe_id(testset.testset) }}"
-                    id="nav_{{ safe_id(suite.suite) }}__{{ safe_id(testset.testset) }}">
+                   data-target="{{ testset.testset_path }}"
+                    id="nav_{{ testset.testset_path_id }}">
                     {{ testset.testset }}
                 </a>
-                <button type="button" class="add-remove-all" data-target="{{ safe_id(suite.suite) }}/{{ safe_id(testset.testset) }}">+</button>
+                <button type="button" class="add-remove-all"
+                        data-target="{{ testset.testset_path }}"
+                        data-action="add"
+                        data-add="+"
+                        data-remove="-">+</button>
                 <ul>
                     {% for test in testset.tests %}
                         <li>
-                            <a href="{{ testbook_base }}/index.html#{{ safe_id(suite.suite) }}/{{ safe_id(testset.testset) }}/{{ safe_id(test.title) }}"
+                            <a href="index.html#{{ test.test_path }}"
                                class="navlink naventry"
-                               id="nav_{{ safe_id(suite.suite) }}__{{ safe_id(testset.testset) }}__{{ safe_id(test.title) }}"
-                               data-target="{{ safe_id(suite.suite) }}/{{ safe_id(testset.testset) }}/{{ safe_id(test.title) }}">
+                               id="nav_{{ test.test_path_id }}"
+                               data-target="{{ test.test_path }}">
                                 {{ test.title }}
                             </a>
                             <button type="button" class="add-remove"
-                                    data-target="{{ safe_id(suite.suite) }}/{{ safe_id(testset.testset) }}/{{ safe_id(test.title) }}"
+                                    data-target="{{ test.test_path }}"
                                     data-action="add"
                                     data-add="+"
                                     data-remove="-">+</button>

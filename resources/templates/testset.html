@@ -1,12 +1,16 @@
 <h1>
-    <a href="{{ testbook_base }}/{{id_prefix}}.html">{{ suite_name }}: {{ testset_name }}</a>
-    <button type="button" class="add-remove-all" data-target="{{ suite_name }}/{{ safe_id(testset_name) }}">Add All</button>
+    <a href="{{id_prefix}}.html">{{ suite_name }}: {{ testset_name }}</a>
+    <button type="button" class="add-remove-all"
+            data-target="{{ safe_id(suite_name) }}/{{ safe_id(testset_name) }}"
+            data-action="add"
+            data-add="Add All"
+            data-remove="Remove All">Add All</button>
 </h1>
 <a href="testset_csvs/{{ id_prefix }}.csv">Download Test Suite CSV</a>
 
 {% for test in tests %}
     <h2>
-        <a href="{{ testbook_base }}/index.html#{{ safe_id(testset_name) }}/{{ safe_id(test.title) }}" id="{{ safe_id(test.title) }}">{{ loop.index }}. {{ test.title }}</a>
+        <a href="index.html#{{ safe_id(testset_name) }}/{{ safe_id(test.title) }}" id="{{ safe_id(test.title) }}">{{ loop.index }}. {{ test.title }}</a>
         <button type="button" class="add-remove"
                 data-target="{{ safe_id(suite_name) }}/{{ safe_id(testset_name) }}/{{ safe_id(test.title) }}"
                 data-action="add"

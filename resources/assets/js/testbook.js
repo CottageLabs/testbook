@@ -2,12 +2,15 @@ let testbook = {};
 
 testbook.state = {
     currentTestSet: false,
-    selected: []
+    structure: []
 }
 
-testbook.init = function() {
+testbook.init = function(structure) {
+    testbook.state.structure = structure;
+
     $(".navlink").on("click", testbook.navClick);
     $(".add-remove").on("click.AddRemove", testbook.toggleAddRemove);
+    $(".add-remove-all").on("click.AddRemoveAll", testbook.toggleAddRemoveAll);
     $(".clear-selected").on("click.ClearSelected", testbook.clearSelected);
     $(".download-selection").on("click.DownloadSelection", testbook.downloadSelection);
 
@@ -18,6 +21,7 @@ testbook.init = function() {
 
     testbook.updateSelectedCount();
     testbook.updateSelectedHighlights();
+    testbook.updateAddRemoveButtons();
 
     let hash = window.location.hash
     if (hash) {
@@ -82,15 +86,20 @@ testbook.loadTestSet = function(params) {
 }
 
 testbook.receivedTestSetHTML = function(id, params) {
+    let tid = params.target.replaceAll("/", "__");
     return function(data) {
         $("#tests").html(data)
         testbook.state.currentTestSet = id;
-        let top = document.getElementById(params.test).offsetTop;
-        window.scrollTo(0, top);
 
+        if (params.test) {
+            let top = document.getElementById(params.test).offsetTop;
+            window.scrollTo(0, top);
+        }
+        
         history.pushState(null, null, "#" + params.target);
 
         $(".add-remove").off("click.AddRemove").on("click.AddRemove", testbook.toggleAddRemove);
+        $(".add-remove-all").off("click.AddRemoveAll").on("click.AddRemoveAll", testbook.toggleAddRemoveAll);
         $(".naventry").removeClass("navselected");
         $("#nav_" + params.suite).addClass("navselected");
         $("#nav_" + id).addClass("navselected");
@@ -122,6 +131,96 @@ testbook.toggleAddRemove = function(event) {
     testbook.updateSelectedHighlights();
 }
 
+testbook.toggleAddRemoveAll = function(event) {
+    let el = $(event.target);
+    let target = el.attr("data-target");
+    let action = el.attr("data-action");
+
+    let bits = target.split("/");
+    let suite = false;
+    for (let i = 0; i < testbook.state.structure.length; i++) {
+        if (testbook.state.structure[i].suite_id === bits[0]) {
+            suite = testbook.state.structure[i];
+            break
+        }
+    }
+
+    if (action === "add") {
+        if (!suite) {
+            alert("Test suite to add not found");
+            return;
+        }
+
+        if (bits.length === 1) {
+            for (let i = 0; i < suite.testsets.length; i++) {
+                let testset = suite.testsets[i];
+                for (let i = 0; i < testset.tests.length; i++) {
+                    testbook.addSelection(testset.tests[i].test_path);
+                }
+            }
+        } else if (bits.length === 2) {
+            // adding a testset
+            let testset = false;
+            for (let i = 0; i < suite.testsets.length; i++) {
+                if (suite.testsets[i].testset_id === bits[1]) {
+                    testset = suite.testsets[i]
+                }
+            }
+            if (!testset) {
+                alert("Testset to add not found");
+                return;
+            }
+
+            for (let i = 0; i < testset.tests.length; i++) {
+                testbook.addSelection(testset.tests[i].test_path);
+            }
+        }
+
+        el.attr("data-action", "remove");
+        let removeText = el.attr("data-remove")
+        el.html(removeText);
+
+    } else if (action === "remove") {
+        if (!suite) {
+            alert("Test suite to remove not found");
+            return;
+        }
+
+        if (bits.length === 1) {
+            for (let i = 0; i < suite.testsets.length; i++) {
+                let testset = suite.testsets[i];
+                for (let i = 0; i < testset.tests.length; i++) {
+                    testbook.removeSelection(testset.tests[i].test_path);
+                }
+            }
+        } else if (bits.length === 2) {
+            // adding a testset
+            let testset = false;
+            for (let i = 0; i < suite.testsets.length; i++) {
+                if (suite.testsets[i].testset_id === bits[1]) {
+                    testset = suite.testsets[i]
+                }
+            }
+            if (!testset) {
+                alert("Testset to remove not found");
+                return;
+            }
+
+            for (let i = 0; i < testset.tests.length; i++) {
+                testbook.removeSelection(testset.tests[i].test_path);
+            }
+        }
+
+        el.attr("data-action", "add");
+        let addText = el.attr("data-add")
+        el.html(addText);
+    }
+
+    testbook.updateSelectedCount();
+    testbook.updateSelectedHighlights();
+    testbook.updateAddRemoveButtons();
+}
+
 testbook.updateSelectedCount = function() {
     let current = window.localStorage.getItem("selected");
     let data = JSON.parse(current);
@@ -139,10 +238,28 @@ testbook.updateSelectedHighlights = function() {
     }
 }
 
+testbook.updateAddRemoveButtons = function() {
+    let current = window.localStorage.getItem("selected");
+    let data = JSON.parse(current);
+    $(".add-remove").each(function(idx) {
+        let el = $(this);
+        let target = el.attr("data-target");
+        if (data.includes(target)) {
+            let removeText = el.attr("data-remove");
+            el.attr("data-action", "remove");
+            el.html(removeText);
+        } else {
+            let addText = el.attr("data-add");
+            el.attr("data-action", "add");
+            el.html(addText);
+        }
+    })
+}
+
 testbook.addSelection = function(target) {
     let current = window.localStorage.getItem("selected")
     let data = JSON.parse(current)
-    if (!(target in data)) {
+    if (!data.includes(target)) {
         data.push(target);
     }
     window.localStorage.setItem("selected", JSON.stringify(data))
@@ -165,7 +282,7 @@ testbook.clearSelected = function(event) {
     if (!sure) {
         return;
     }
-    
+
     window.localStorage.setItem("selected", JSON.stringify([]));
     testbook.updateSelectedCount();
     testbook.updateSelectedHighlights();
