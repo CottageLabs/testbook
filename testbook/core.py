@@ -1,7 +1,9 @@
 import os, yaml, re, csv
+import shutil
 
 from jinja2 import Environment
 from jinja2 import FileSystemLoader
+
 
 def rel2abs(file, *args):
     file = os.path.realpath(file)
@@ -9,7 +11,10 @@ def rel2abs(file, *args):
         file = os.path.dirname(file)
     return os.path.abspath(os.path.join(file, *args))
 
+
 TEMPLATE_DIR = rel2abs(__file__, "..", "resources", "templates")
+ASSETS_DIR = rel2abs(__file__, "..", "resources", "assets")
+
 
 def parse_tree(dir, outdir, config):
     struct = read_structure(dir)
@@ -82,6 +87,16 @@ def render_testset(struct, suite_name, testset, outdir, config):
     env.loader = FileSystemLoader([TEMPLATE_DIR])
     env.globals["safe_id"] = safe_id
 
+    template = env.get_template("index.html")
+    page = template.render(
+        struct=struct,
+        testbook_base=config.get("testbook_base", "")
+    )
+
+    outfile = os.path.join(outdir, "index.html")
+    with open(outfile, "w", encoding="utf-8") as f:
+        f.write(page)
+
     template = env.get_template("testset.html")
     page = template.render(
         tests=tests,
@@ -97,6 +112,11 @@ def render_testset(struct, suite_name, testset, outdir, config):
     outfile = os.path.join(outdir, id + ".html")
     with open(outfile, "w", encoding="utf-8") as f:
         f.write(page)
+
+    assets_out = os.path.join(outdir, "assets")
+    if os.path.exists(assets_out):
+        shutil.rmtree(assets_out)
+    shutil.copytree(ASSETS_DIR, assets_out)
 
 
 def testset_csv(outdir, id, tests, config):
