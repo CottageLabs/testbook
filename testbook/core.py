@@ -1,5 +1,5 @@
 import os, yaml, re, csv
-import shutil
+import shutil, zipfile
 
 from jinja2 import Environment
 from jinja2 import FileSystemLoader
@@ -82,6 +82,7 @@ def render_testset(struct, suite_name, testset, outdir, config):
     create_out_dir(outdir)
 
     testset_csv(outdir, id, tests, config)
+    zip_of_all(outdir, config)
 
     env = Environment(autoescape=True)
     env.loader = FileSystemLoader([TEMPLATE_DIR])
@@ -121,7 +122,10 @@ def render_testset(struct, suite_name, testset, outdir, config):
 
 def testset_csv(outdir, id, tests, config):
     filename = id + ".csv"
-    outfile = os.path.join(outdir, filename)
+    outsubdir = os.path.join(outdir, "testset_csvs")
+    create_out_dir(outsubdir)
+    outfile = os.path.join(outsubdir, filename)
+
     with open(outfile, "w") as f:
         writer = csv.writer(f)
         writer.writerow(["Step Number", "User/User Role", "Action", "Expected Test Results", "Testers feedback on script"])
@@ -132,7 +136,7 @@ def testset_csv(outdir, id, tests, config):
             idx += 1
             rows = test_rows(test, config, idx)
 
-            individual_filename = safe_id(id + "__" + str(idx))
+            individual_filename = safe_id(id + "__" + test["title"])
             individual_outdir = os.path.join(outdir, "test_csvs")
             create_out_dir(individual_outdir)
             individual_out = os.path.join(individual_outdir, individual_filename + ".csv")
@@ -186,6 +190,15 @@ def test_rows(test, config, idx):
             ])
 
     return rows
+
+
+def zip_of_all(outdir, config):
+    zip = os.path.join(outdir, "all_tests.zip")
+    testsets = os.path.join(outdir, "testset_csvs")
+
+    with zipfile.ZipFile(zip, mode="w") as zf:
+        for fn in os.listdir(testsets):
+            zf.write(os.path.join(testsets, fn), arcname=fn)
 
 
 def create_out_dir(outdir):

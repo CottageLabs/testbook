@@ -9,6 +9,7 @@ testbook.init = function() {
     $(".navlink").on("click", testbook.navClick);
     $(".add-remove").on("click.AddRemove", testbook.toggleAddRemove);
     $(".clear-selected").on("click.ClearSelected", testbook.clearSelected);
+    $(".download-selection").on("click.DownloadSelection", testbook.downloadSelection);
 
     let selected = window.localStorage.getItem("selected")
     if (!selected) {
@@ -159,8 +160,44 @@ testbook.removeSelection = function(target) {
 
 testbook.clearSelected = function(event) {
     event.preventDefault();
-    window.localStorage.setItem("selected", JSON.stringify([]));
 
+    let sure = confirm("Are you sure you want to clear your selection?");
+    if (!sure) {
+        return;
+    }
+    
+    window.localStorage.setItem("selected", JSON.stringify([]));
     testbook.updateSelectedCount();
     testbook.updateSelectedHighlights();
+}
+
+testbook.downloadSelection = function(event) {
+    event.preventDefault();
+
+    let current = window.localStorage.getItem("selected")
+    let data = JSON.parse(current)
+
+    let promises = [];
+    for (let i = 0; i < data.length; i++) {
+        let entry = data[i];
+        let id = entry.replaceAll("/", "__")
+        promises.push(new Promise((resolve, reject) => {
+            $.get({
+                url: "test_csvs/" + id + ".csv",
+                success: resolve,
+                error: reject
+            })
+        }))
+    }
+
+    Promise.all(promises).then((values) => {
+        let content = "data:text/csv;charset=utf-8,"
+        content += values.join("\n");
+        let encodedUri = encodeURI(content);
+        let link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "testbook.csv");
+        document.body.appendChild(link); // Required for FF
+        link.click(); // This will download the data file named "my_data.csv".
+    })
 }
