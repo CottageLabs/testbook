@@ -1,12 +1,12 @@
 <h1>
-    <a href="{{id_prefix}}.html">{{ suite_name }}: {{ testset_name }}</a>
+    <a href="{{id}}.html">{{ suite_name }}: {{ testset_name }}</a>
     <button type="button" class="add-remove-all"
             data-target="{{ safe_id(suite_name) }}/{{ safe_id(testset_name) }}"
             data-action="add"
             data-add="Add All"
             data-remove="Remove All">Add All</button>
 </h1>
-<a href="testset_csvs/{{ id_prefix }}.csv">Download Testset</a>
+<a href="testset_csvs/{{ id }}.csv">Download Testset</a>
 
 {% for test in tests %}
     <h2>
@@ -48,7 +48,7 @@
         {% set test_id = loop.index %}
         {% for step in test.steps %}
             <tr>
-                <td>{{ test_id }}.{{ loop.index }}.</td>
+                <td>{{ id_prefix }}.{{ test_id }}.{{ loop.index }}.</td>
                 <td>
                     {{ step.step }}
                     {% if step.path %}
@@ -65,7 +65,7 @@
                 {% set step_id = loop.index %}
                 {% for result in step.results %}
                     <tr>
-                        <td>{{ test_id }}.{{ step_id }}.{{ loop.index }}</td>
+                        <td>{{ id_prefix }}.{{ test_id }}.{{ step_id }}.{{ loop.index }}</td>
                         <td>&nbsp;</td>
                         <td>{{ result }}</td>
                         <td><input type="checkbox"></td>

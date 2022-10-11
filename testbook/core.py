@@ -110,7 +110,8 @@ def render_testset(struct, suite_name, testset, outdir, config):
         struct=struct,
         suite_name=suite_name,
         testset_name=testset["testset"],
-        id_prefix=id,
+        id=id,
+        id_prefix=get_id_prefix(id),
         application_base=config.get("application_base", ""),
         resource_base=config.get("resource_base", ""),
         testbook_base=config.get("testbook_base", "")
@@ -131,6 +132,8 @@ def testset_csv(outdir, id, tests, config, testset, suite_name):
     outsubdir = os.path.join(outdir, "testset_csvs")
     create_out_dir(outsubdir)
     outfile = os.path.join(outsubdir, filename)
+
+    id_prefix = get_id_prefix(id)
 
     with open(outfile, "w") as f:
         writer = csv.writer(f)
@@ -174,7 +177,7 @@ def testset_csv(outdir, id, tests, config, testset, suite_name):
         idx = 0
         for test in tests:
             idx += 1
-            rows = test_rows(test, config, idx)
+            rows = test_rows(test, config, idx, id_prefix)
 
             individual_filename = safe_id(id + "__" + test["title"])
             individual_outdir = os.path.join(outdir, "test_csvs")
@@ -189,7 +192,7 @@ def testset_csv(outdir, id, tests, config, testset, suite_name):
             writer.writerow([])
 
 
-def test_rows(test, config, idx):
+def test_rows(test, config, idx, id_prefix):
     step_id = 0
     rows = []
     rows.append([
@@ -198,11 +201,11 @@ def test_rows(test, config, idx):
         "----------",
         "----------"
     ])
-    rows.append(["## " + str(idx), "----------", "## " + test["title"], "----------"])
+    rows.append(["## " + id_prefix + "." + str(idx), "----------", "## " + test["title"], "----------"])
 
     for step in test.get("steps", []):
         step_id += 1
-        id = str(idx) + "." + str(step_id) + "."
+        id = id_prefix + "." + str(idx) + "." + str(step_id) + "."
 
         desc = step.get("step", "")
         if "path" in step:
@@ -256,3 +259,25 @@ def create_out_dir(outdir):
 def safe_id(s):
     basic = s.lower().replace(" ", "_")
     return "".join([c for c in basic if re.match(r'\w', c)])
+
+
+ID_REGISTRY = []
+ID_PARTS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+
+def get_id_prefix(id):
+    if id not in ID_REGISTRY:
+        ID_REGISTRY.append(id)
+    loc = ID_REGISTRY.index(id)
+    parts = numberToBase(loc, 26)
+    return "".join([ID_PARTS[p] for p in parts])
+
+
+def numberToBase(n, b):
+    if n == 0:
+        return [0]
+    digits = []
+    while n:
+        digits.append(int(n % b))
+        n //= b
+    return digits[::-1]
