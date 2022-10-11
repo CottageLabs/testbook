@@ -31,8 +31,7 @@ def read_structure(dir):
                 if tests["suite"] not in nav:
                     nav[tests["suite"]] = {}
                 if tests["testset"] not in nav[tests["suite"]]:
-                    nav[tests["suite"]][tests["testset"]] = {}
-                nav[tests["suite"]][tests["testset"]] = []
+                    nav[tests["suite"]][tests["testset"]] = []
                 for test in tests["tests"]:
                     nav[tests["suite"]][tests["testset"]].append({
                         "test_id": safe_id(test["title"]),
@@ -156,6 +155,12 @@ def testset_csv(outdir, id, tests, config, testset, suite_name):
             testset["testset_path"],
             "~~~~~~~~~~"
         ])
+        headers.append([
+            "~~~~~~~~~~",
+            "~~~~~~~~~~",
+            "~~~~~~~~~~",
+            "~~~~~~~~~~"
+        ])
 
         writer.writerows(headers)
 
@@ -193,7 +198,7 @@ def test_rows(test, config, idx):
         "----------",
         "----------"
     ])
-    rows.append([str(idx) + ".0.", "", "## " + test["title"]])
+    rows.append(["## " + str(idx), "----------", "## " + test["title"], "----------"])
 
     for step in test.get("steps", []):
         step_id += 1
