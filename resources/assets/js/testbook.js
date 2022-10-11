@@ -346,6 +346,7 @@ testbook.downloadSelection = function(event) {
 
     Promise.all(promises).then((values) => {
         let preamble = "data:text/csv;charset=utf-8,"
+        preamble += "Step Number,User/User Role,Action,Expected Test Results,Testers feedback on script\n"
         let csv = values.join("\n");
         let encodedUri = preamble + encodeURIComponent(csv);
         let link = document.createElement("a");
