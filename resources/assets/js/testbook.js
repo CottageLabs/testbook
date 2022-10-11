@@ -293,14 +293,51 @@ testbook.downloadSelection = function(event) {
 
     let current = window.localStorage.getItem("selected")
     let data = JSON.parse(current)
+    if (data.length === 0) {
+        return;
+    }
+
+    // sort the data into the desired order, and at the same time
+    // pull out the headers in the position in the order that they
+    // will be required
+    let ordered = [];
+    let headers = [];
+    let header_registry = []
+    outside:
+    for (let suite of testbook.state.structure) {
+        for (let testset of suite.testsets) {
+            for (let test of testset.tests) {
+                let idx = data.indexOf(test.test_path)
+                if (idx > -1) {
+                    if (!header_registry.includes(testset.testset_path)) {
+                        header_registry.push(testset.testset_path)
+                        headers.push([ordered.length, testset.testset_path]);
+                    }
+                    ordered.push(["test", test.test_path])
+                    data.splice(idx, 1);
+                    if (data.length === 0) {
+                        break outside;
+                    }
+                }
+            }
+        }
+    }
+
+    // now mesh the headers and the tests together
+    for (let i = headers.length - 1; i >= 0; i--) {
+        let header = headers[i];
+        ordered.splice(header[0], 0, ["testset", header[1]])
+    }
 
     let promises = [];
-    for (let i = 0; i < data.length; i++) {
-        let entry = data[i];
-        let id = entry.replaceAll("/", "__")
+    for (let i = 0; i < ordered.length; i++) {
+        let instruction = ordered[i];
+        let entry = instruction[1];
+        let id = entry.replaceAll("/", "__");
         promises.push(new Promise((resolve, reject) => {
+            let urlBase = instruction[0] === "test" ? "test_csvs/" : "headers/";
             $.get({
-                url: "test_csvs/" + id + ".csv",
+                url: urlBase + id + ".csv",
                 success: resolve,
                 error: reject
             })
@@ -308,13 +345,13 @@ testbook.downloadSelection = function(event) {
     }
 
     Promise.all(promises).then((values) => {
-        let content = "data:text/csv;charset=utf-8,"
-        content += values.join("\n");
-        let encodedUri = encodeURI(content);
+        let preamble = "data:text/csv;charset=utf-8,"
+        let csv = values.join("\n");
+        let encodedUri = preamble + encodeURIComponent(csv);
         let link = document.createElement("a");
         link.setAttribute("href", encodedUri);
         link.setAttribute("download", "testbook.csv");
-        document.body.appendChild(link); // Required for FF
-        link.click(); // This will download the data file named "my_data.csv".
+        document.body.appendChild(link);
+        link.click();
     })
 }

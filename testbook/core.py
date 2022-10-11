@@ -88,7 +88,7 @@ def render_testset(struct, suite_name, testset, outdir, config):
 
     create_out_dir(outdir)
 
-    testset_csv(outdir, id, tests, config)
+    testset_csv(outdir, id, tests, config, testset, suite_name)
     zip_of_all(outdir, config)
 
     env = Environment(autoescape=True)
@@ -127,7 +127,7 @@ def render_testset(struct, suite_name, testset, outdir, config):
     shutil.copytree(ASSETS_DIR, assets_out)
 
 
-def testset_csv(outdir, id, tests, config):
+def testset_csv(outdir, id, tests, config, testset, suite_name):
     filename = id + ".csv"
     outsubdir = os.path.join(outdir, "testset_csvs")
     create_out_dir(outsubdir)
@@ -136,7 +136,35 @@ def testset_csv(outdir, id, tests, config):
     with open(outfile, "w") as f:
         writer = csv.writer(f)
         writer.writerow(["Step Number", "User/User Role", "Action", "Expected Test Results", "Testers feedback on script"])
-        writer.writerow([])
+
+        headers = []
+        headers.append([
+            "~~~~~~~~~~",
+            "~~~~~~~~~~",
+            "~~~~~~~~~~",
+            "~~~~~~~~~~"
+        ])
+        headers.append([
+            "~~~~~~~~~~",
+            "~~~~~~~~~~",
+            "# " + suite_name + ": " + testset["testset"],
+            "~~~~~~~~~~"
+        ])
+        headers.append([
+            "~~~~~~~~~~",
+            "~~~~~~~~~~",
+            testset["testset_path"],
+            "~~~~~~~~~~"
+        ])
+
+        writer.writerows(headers)
+
+        headers_dir = os.path.join(outdir, "headers")
+        create_out_dir(headers_dir)
+        headers_file = os.path.join(headers_dir, filename)
+        with open(headers_file, "w") as g:
+            hw = csv.writer(g)
+            hw.writerows(headers)
 
         idx = 0
         for test in tests:
@@ -165,7 +193,7 @@ def test_rows(test, config, idx):
         "----------",
         "----------"
     ])
-    rows.append([str(idx) + ".0.", "", test["title"]])
+    rows.append([str(idx) + ".0.", "", "## " + test["title"]])
 
     for step in test.get("steps", []):
         step_id += 1
@@ -195,6 +223,13 @@ def test_rows(test, config, idx):
                 "",
                 r
             ])
+
+    rows.append([
+        "----------",
+        "----------",
+        "----------",
+        "----------"
+    ])
 
     return rows
 
