@@ -27,7 +27,12 @@ def read_structure(dir):
         for name in files:
             path = os.path.join(root, name)
             with open(path) as f:
-                tests = yaml.load(f.read(), Loader=yaml.CLoader)
+                try:
+                    tests = yaml.load(f.read(), Loader=yaml.CLoader)
+                except:
+                    print("Error loading from {x}".format(x=path))
+                    raise
+
                 if tests["suite"] not in nav:
                     nav[tests["suite"]] = {}
                 if tests["testset"] not in nav[tests["suite"]]:
@@ -202,6 +207,27 @@ def test_rows(test, config, idx, id_prefix):
         "----------"
     ])
     rows.append(["## " + id_prefix + "." + str(idx), "----------", "## " + test["title"], "----------"])
+
+    for dependency in test.get("depends", []):
+        dep = dependency.get("suite", "")
+        if dependency.get("testset"):
+            dep += " : " + dependency.get("testset")
+        if dependency.get("test"):
+            dep += " : " + dependency.get("test")
+        rows.append([
+            "Depends on " + dep,
+            "",
+            "",
+            ""
+        ])
+
+    for setup in test.get("setup", []):
+        rows.append([
+            "",
+            "",
+            "Setup: " + setup,
+            ""
+        ])
 
     for step in test.get("steps", []):
         step_id += 1

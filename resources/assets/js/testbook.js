@@ -8,7 +8,9 @@ testbook.state = {
 testbook.init = function(structure) {
     testbook.state.structure = structure;
 
-    $(".navlink").on("click", testbook.navClick);
+    $.ajaxSetup({cache: false});
+
+    $(".navlink").on("click.NavLink", testbook.navClick);
     $(".add-remove").on("click.AddRemove", testbook.toggleAddRemove);
     $(".add-remove-all").on("click.AddRemoveAll", testbook.toggleAddRemoveAll);
     $(".clear-selected").on("click.ClearSelected", testbook.clearSelected);
@@ -94,10 +96,13 @@ testbook.receivedTestSetHTML = function(id, params) {
         if (params.test) {
             let top = document.getElementById(params.test).offsetTop;
             window.scrollTo(0, top);
+        } else {
+            window.scrollTo(0, 0);
         }
 
         history.pushState(null, null, "#" + params.target);
 
+        $(".navlink").off("click.NavLink").on("click.NavLink", testbook.navClick);
         $(".add-remove").off("click.AddRemove").on("click.AddRemove", testbook.toggleAddRemove);
         $(".add-remove-all").off("click.AddRemoveAll").on("click.AddRemoveAll", testbook.toggleAddRemoveAll);
         $(".naventry").removeClass("navselected");

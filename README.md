@@ -43,6 +43,10 @@ tests:
   - title: Title of this specific test
     context:
       any_key: any_value
+    depends:
+      - suite: Suite Name
+        testset: Testset name
+        test: Test name
     setup:
       - Setup instructions
     steps:
@@ -61,6 +65,7 @@ When the files are read, the tests will be clustered by `suite` and then `testse
 Each test consists of 
 * a `title` which should be unique within this `testset`
 * a `context` which allows you to include any key/value pairs for the user's information (they have no semantics within testbook)
+* a `depends` list, which lists any number of tests which must be executed prior to this test in order for it to work.  This can contain a `suite`, `testset` and `test` as needed.
 * a `setup` list, which should instruct the user how to prepare for the test
 * a set of `steps`.  Each step may have the following:
     * a `step` (required) - the instructions for the user to execute the step

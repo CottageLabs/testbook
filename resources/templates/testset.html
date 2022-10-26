@@ -1,5 +1,5 @@
 <h1>
-    <a href="{{id}}.html">{{ suite_name }}: {{ testset_name }}</a>
+    {{ suite_name }}: {{ testset_name }}
     <button type="button" class="add-remove-all"
             data-target="{{ safe_id(suite_name) }}/{{ safe_id(testset_name) }}"
             data-action="add"
@@ -10,13 +10,34 @@
 
 {% for test in tests %}
     <h2>
-        <a href="index.html#{{ safe_id(testset_name) }}/{{ safe_id(test.title) }}" id="{{ safe_id(test.title) }}">{{ loop.index }}. {{ test.title }}</a>
+        <a id="{{ safe_id(test.title) }}"></a>
+        {{ loop.index }}. {{ test.title }}
         <button type="button" class="add-remove"
                 data-target="{{ safe_id(suite_name) }}/{{ safe_id(testset_name) }}/{{ safe_id(test.title) }}"
                 data-action="add"
                 data-add="Add"
                 data-remove="Remove">Add</button>
     </h2>
+
+    {% if test.depends %}
+    <div class="depends">
+        <strong>Depends On</strong>
+        <ul>
+        {% for d in test.depends %}
+            <li>
+                <a href="#{% if d.suite %}{{ safe_id(d.suite) }}{% endif %}{% if d.testset %}/{{ safe_id(d.testset) }}{% endif %}{% if d.test %}/{{ safe_id(d.test) }}{% endif %}"
+                    class="navlink"
+                   data-target="{% if d.suite %}{{ safe_id(d.suite) }}{% endif %}{% if d.testset %}/{{ safe_id(d.testset) }}{% endif %}{% if d.test %}/{{ safe_id(d.test) }}{% endif %}"
+                >
+                    {% if d.suite %}{{ d.suite }}{% endif %}
+                    {% if d.testset %}: {{ d.testset }}{% endif %}
+                    {% if d.test %}: {{ d.test }}{% endif %}
+                </a>
+            </li>
+        {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
 
     {% if test.context %}
     <strong>Test context</strong>
@@ -26,6 +47,7 @@
     {% endfor %}
     </ul>
     {% endif %}
+
 
     {% if test.setup %}
     <div class="setup"><strong>Setup</strong>:
