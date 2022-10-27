@@ -76,6 +76,29 @@ def render_structure(struct, outdir, config):
             render_testset(struct, suite["suite"], testset, outdir, config)
 
 
+def _process_includes(tests, fragments):
+    for t in tests:
+        steps = t.get("steps", [])
+        subs = {}
+        for i in range(len(steps)):
+            step = steps[i]
+            if "include" in step:
+                fragment = step["include"].get("fragment")
+                if not fragment:
+                    raise Exception("Include step with no fragment identified")
+                replacements = fragments.get(fragment)
+                if not replacements:
+                    raise Exception("Fragment {x} requested but not defined".format(x=fragment))
+                subs[i] = replacements
+
+        if len(subs) > 0:
+            keys = sorted(list(subs.keys()), reverse=True)
+            for k in keys:
+                v = subs[k]
+                steps = steps[:k] + v + steps[k+1:]
+            t["steps"] = steps
+
+
 def render_testset(struct, suite_name, testset, outdir, config):
     files = []
     for test in testset["tests"]:
@@ -83,10 +106,14 @@ def render_testset(struct, suite_name, testset, outdir, config):
             files.append(test["file"])
 
     tests = []
+    fragments = {}
     for f in files:
         with open(f) as g:
             data = yaml.load(g.read(), Loader=yaml.CLoader)
         tests += data["tests"]
+        fragments.update(data.get("fragments", {}))
+
+    _process_includes(tests, fragments)
 
     id = safe_id(suite_name + "__" + testset["testset"])
 

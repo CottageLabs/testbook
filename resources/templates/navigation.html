@@ -1,16 +1,16 @@
 <ul>
 {% for suite in struct %}
     <li>
-        <span id="nav_{{ suite.suite_id }}" class="naventry">{{ suite.suite }}</span>
+        <a href="#" class="toggle_nav">&gt;</a>&nbsp;<span id="nav_{{ suite.suite_id }}" class="naventry">{{ suite.suite }}</span>
         <button type="button" class="add-remove-all"
                 data-target="{{ suite.suite_id }}"
                 data-action="add"
                 data-add="+"
                 data-remove="-">+</button>
-        <ul>
+        <ul style="display:none">
         {% for testset in suite.testsets %}
             <li>
-                <a href="index.html#{{ testset.testset_path }}"
+                <a href="#" class="toggle_nav">&gt;</a>&nbsp;<a href="index.html#{{ testset.testset_path }}"
                    class="navlink naventry"
                    data-target="{{ testset.testset_path }}"
                     id="nav_{{ testset.testset_path_id }}">
@@ -21,9 +21,9 @@
                         data-action="add"
                         data-add="+"
                         data-remove="-">+</button>
-                <ul>
+                <ul style="display: none">
                     {% for test in testset.tests %}
-                        <li>
+                        <li class="test_li">
                             <a href="index.html#{{ test.test_path }}"
                                class="navlink naventry"
                                id="nav_{{ test.test_path_id }}"

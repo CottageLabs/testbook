@@ -19,16 +19,27 @@ testbook [source dir] [out dir] -t [testbook base url] -a [application base url]
 For example, to build a project on your local machine, using resources hosted on github:
 
 ```
-testbook myproject/testbook myproject/testscripts -t file:///home/user/myproject/testscripts -a http://localhost:5000 -r https://raw.githubusercontent.com/MyOrg/myproject/develop/testscripts
+testbook myproject/testbook myproject/testscripts -t http://localhost:8000 -a http://localhost:5000 -r https://raw.githubusercontent.com/MyOrg/myproject/develop/testscripts
 ```
 
 This will read the tests defined in `myproject/testbook` and output HTML and CSV files to `myproject/testscripts`.
 
-All internal testbook links will be prefixed with `file:///home/user/myproject/testscripts`
+All internal testbook links will be prefixed with `http://localhost:8000`
 
 All links into the application will be prefixed with `http://localhost:5000`
 
 And all links to resource files will be prefixed with `https://raw.githubusercontent.com/MyOrg/myproject/develop/testscripts`
+
+
+## Running the testbook
+
+Testbook needs to run through a webserver, as it loads data asynchronously from the filesystem; you cannot view it at a `file:///` url.  It is designed for deployment to, e.g. github pages.  You can run it locally easily enough with any simple web server.  To do this in python, for example, go into the testbook output directory and run
+
+```
+python -m SimpleHTTPServer
+```
+
+This will bring your testbook up at `http://localhost:8000`.
 
 
 ## Testbook format
@@ -38,6 +49,11 @@ Testbook files are of the following format.
 ```yaml
 suite: Name of the Test Suite
 testset: Name for this set of tests
+
+fragments:
+  fragment_id:
+    - step: Reusable step
+    - step: Another reusable step
 
 tests:
   - title: Title of this specific test
@@ -57,10 +73,14 @@ tests:
       - step: A step of the test with a result
         results:
           - A result that the user can verify
+      - include:
+          fragment: fragment_id
 ```
 
 When the files are read, the tests will be clustered by `suite` and then `testset`.  You can define the same `suite` and
 `testset` in multiple files, and they will be aggregated together.
+
+You may then define any number of re-usable fragments of test scripts.  This is done in a `fragments` field where each fragment is provided with a unique id.  The fragment may then contain an arbitrary number of `step`s.  Note that fragments can only be used within the file they are defined in (for now).
 
 Each test consists of 
 * a `title` which should be unique within this `testset`
@@ -72,4 +92,5 @@ Each test consists of
     * a `path` - a link to the application, to aid the user in getting to the right place to execute the test
     * a `resource` - a link to a test resource that the user may need (e.g. a file to upload to a web form)
     * a `results` list - any number of outcomes from the `step` that the user should check
+    * an `include` directive - if this is present, none of the other entries defined above have any effect.  This defines a fragment to be included, and has a `fragment` field within it where you specify the fragment ID in the `fragments` section.
 

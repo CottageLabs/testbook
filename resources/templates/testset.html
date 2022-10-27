@@ -60,17 +60,17 @@
     <table>
         <thead>
             <tr>
-                <td id="step_id">ID</td>
+                <td id="step_id" style="width: 1%">ID</td>
                 <td id="action">Action</td>
                 <td id="result">Expected Result</td>
-                <td>&nbsp;</td>
+                <td style="width: 1%">&nbsp;</td>
             </tr>
         </thead>
         <tbody>
         {% set test_id = loop.index %}
         {% for step in test.steps %}
             <tr>
-                <td>{{ id_prefix }}.{{ test_id }}.{{ loop.index }}.</td>
+                <td>{{ id_prefix }}.{{ test_id }}.{{ loop.index }}</td>
                 <td>
                     {{ step.step }}
                     {% if step.path %}
