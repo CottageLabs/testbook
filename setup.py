@@ -3,14 +3,14 @@ from setuptools import setup, find_packages
 # ~~Setup:Core~~
 setup(
     name='testbook',
-    version='0.0.2',
+    version='0.0.3',
     packages=find_packages(),
     package_data={'testbook': ['testbook/resources/*']},
     include_package_data=True,
     install_requires=[
-        "jinja2==2.11.3",
+        "jinja2<3.1.0",
         "pyyaml==5.4.1",
-        "click >=8.0.0",
+        "click>=8.0.0",
         "MarkupSafe==2.0.1"
     ],
     url='https://cottagelabs.com/',
