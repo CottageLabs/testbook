@@ -5,7 +5,6 @@ setup(
     name='testbook',
     version='0.0.3',
     packages=find_packages(),
-    package_data={'testbook': ['testbook/resources/*']},
     include_package_data=True,
     install_requires=[
         "jinja2<3.1.0",
