@@ -12,8 +12,8 @@ def rel2abs(file, *args):
     return os.path.abspath(os.path.join(file, *args))
 
 
-TEMPLATE_DIR = rel2abs(__file__, "..", "resources", "templates")
-ASSETS_DIR = rel2abs(__file__, "..", "resources", "assets")
+TEMPLATE_DIR = rel2abs(__file__, "resources", "templates")
+ASSETS_DIR = rel2abs(__file__, "resources", "assets")
 
 
 def parse_tree(dir, outdir, config):

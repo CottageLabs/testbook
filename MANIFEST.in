@@ -1,0 +1,6 @@
+
+# MANIFEST.in
+
+include *.txt
+recursive-include testbook *.html
+recursive-include testbook *.js

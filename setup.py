@@ -7,7 +7,12 @@ setup(
     name = 'testbook',
     version = '0.0.1',
     packages = find_packages(),
-    install_requires = [],
+    install_requires = [
+        "jinja2==2.11.3",
+        "pyyaml==5.4.1",
+        "click >=8.0.0",
+        "MarkupSafe==2.0.1"
+    ],
     url = 'http://cottagelabs.com/',
     author = 'Cottage Labs',
     author_email = 'richard@cottagelabs.com',
