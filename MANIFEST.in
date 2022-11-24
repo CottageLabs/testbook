@@ -1,6 +1,4 @@
-
 # MANIFEST.in
 
-include *.txt
-recursive-include testbook *.html
-recursive-include testbook *.js
+recursive-include testbook *
+include *.xlsx
