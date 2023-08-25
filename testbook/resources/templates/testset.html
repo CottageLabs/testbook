@@ -72,7 +72,7 @@
             <tr>
                 <td>{{ id_prefix }}.{{ test_id }}.{{ loop.index }}</td>
                 <td>
-                    {{ step.step }}
+                    {{ step.step|line_breaker|safe }}
                     {% if step.path %}
                     <br><br>Application Link: <a href="{{ application_base }}{{ step.path }}" target="_blank">{{ application_base }}{{ step.path }}</a>
                     {% endif %}

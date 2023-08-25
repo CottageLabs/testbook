@@ -11,6 +11,8 @@ def rel2abs(file, *args):
         file = os.path.dirname(file)
     return os.path.abspath(os.path.join(file, *args))
 
+def line_breaker_filter_jinja2(text):
+    return text.replace("\n", "<br/>")
 
 TEMPLATE_DIR = rel2abs(__file__, "resources", "templates")
 ASSETS_DIR = rel2abs(__file__, "resources", "assets")
@@ -125,6 +127,7 @@ def render_testset(struct, suite_name, testset, outdir, config):
     env = Environment(autoescape=True)
     env.loader = FileSystemLoader([TEMPLATE_DIR])
     env.globals["safe_id"] = safe_id
+    env.filters["line_breaker"] = line_breaker_filter_jinja2
 
     template = env.get_template("index.html")
     page = template.render(
