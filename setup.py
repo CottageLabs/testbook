@@ -8,7 +8,7 @@ setup(
     include_package_data=True,
     install_requires=[
         "jinja2<3.1.0",
-        "pyyaml==5.4.1",
+        "pyyaml==6.0.1",
         "click>=8.0.0",
         "MarkupSafe==2.0.1"
     ],
