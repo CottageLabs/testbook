@@ -59,3 +59,5 @@ Temporary Items
 # Testbook config contains credentials — never commit the real file
 config.yml
 
+# sqlite database
+testbook.db

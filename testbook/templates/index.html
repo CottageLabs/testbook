@@ -12,9 +12,6 @@
     <header class="hero">
         <p class="eyebrow">Testbook</p>
         <h1>{% if repo_name %}{{ repo_name }}{% else %}Test Repository{% endif %}</h1>
-        {% if tests_path %}
-        <p class="lead">Test definitions in <code>{{ tests_path }}/</code></p>
-        {% endif %}
     </header>
 
     {# ------------------------------------------------------------------ #}
@@ -29,47 +26,133 @@
     {% endif %}
 
     {# ------------------------------------------------------------------ #}
-    {# Branch selector + file list                                          #}
+    {# Branch selector + sync control                                       #}
     {# ------------------------------------------------------------------ #}
     {% if not error %}
     <section class="panel">
-        <form method="get" action="/" class="branch-form">
-            <label for="branch-select" class="branch-label">Branch</label>
-            <select id="branch-select" name="branch" onchange="this.form.submit()">
-                {% for branch in branches %}
-                <option value="{{ branch }}"
-                    {% if branch == selected_branch %}selected{% endif %}>
-                    {{ branch }}
-                </option>
-                {% endfor %}
-            </select>
-            <noscript>
-                <button type="submit">Go</button>
-            </noscript>
-        </form>
+        <div class="branch-controls">
+            <form method="get" action="/" class="branch-form">
+                <label for="branch-select" class="branch-label">Branch</label>
+                <select id="branch-select" name="branch" onchange="this.form.submit()">
+                    {% for branch in branches %}
+                    <option value="{{ branch }}"
+                        {% if branch == selected_branch %}selected{% endif %}>
+                        {{ branch }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <noscript>
+                    <button type="submit">Go</button>
+                </noscript>
+            </form>
+
+            {% if show_sync_button %}
+            <form method="post" action="/sync" class="sync-form">
+                <input type="hidden" name="branch" value="{{ selected_branch }}">
+                <button type="submit" class="btn btn-primary">
+                    {% if need_sync %}Sync Tests{% else %}Refresh{% endif %}
+                </button>
+            </form>
+            {% endif %}
+        </div>
     </section>
 
+    {# ------------------------------------------------------------------ #}
+    {# Test hierarchy (Suite → TestSet → Test)                              #}
+    {# ------------------------------------------------------------------ #}
+    {% if suites %}
     <section class="panel">
         <h2>
-            Test files
-            <span class="badge">{{ test_files | length }}</span>
+            Test Suites
+            <span class="badge">{{ suites | length }}</span>
         </h2>
 
-        {% if test_files %}
-        <ul class="file-list">
-            {% for f in test_files %}
-            <li class="file-item">
-                <a href="{{ f.url }}" target="_blank" rel="noopener" class="file-link">
-                    {{ f.path }}
-                </a>
+        <ul class="suite-list">
+            {% for suite in suites %}
+            <li class="suite-item" data-suite-id="{{ suite.id }}">
+                <div class="suite-header">
+                    <button class="toggle-btn" type="button" aria-expanded="true" aria-label="Toggle suite">
+                        <span class="toggle-icon">▼</span>
+                    </button>
+                    <span class="suite-name">{{ suite.name }}</span>
+                    <span class="testset-count">{{ suite.testsets | length }} testset{{ '' if suite.testsets | length == 1 else 's' }}</span>
+                </div>
+
+                {% if suite.testsets %}
+                <ul class="testset-list suite-content" data-suite-id="{{ suite.id }}">
+                    {% for testset in suite.testsets %}
+                    <li class="testset-item" data-testset-id="{{ testset.id }}">
+                        <div class="testset-header">
+                            <button class="toggle-btn" type="button" aria-expanded="true" aria-label="Toggle testset">
+                                <span class="toggle-icon">▼</span>
+                            </button>
+                            <span class="testset-name">{{ testset.name }}</span>
+                            <span class="test-count">{{ testset.tests | length }} test{{ '' if testset.tests | length == 1 else 's' }}</span>
+                        </div>
+
+                        {% if testset.tests %}
+                        <ul class="test-list testset-content" data-testset-id="{{ testset.id }}">
+                            {% for test in testset.tests %}
+                            <li class="test-item">
+                                <span class="test-title">{{ test.title }}</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
             </li>
             {% endfor %}
         </ul>
-        {% else %}
-        <p class="muted">No YAML test files found in <code>{{ tests_path }}/</code> on branch <strong>{{ selected_branch }}</strong>.</p>
-        {% endif %}
+    </section>
+    {% elif not need_sync %}
+    <section class="panel panel--empty">
+        <p>No tests synced for <strong>{{ selected_branch }}</strong> yet. Click "Sync Tests" to load them.</p>
     </section>
     {% endif %}
+    {% endif %}
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Handle suite toggle buttons (only direct children of suite-header)
+            document.querySelectorAll('.suite-header .toggle-btn').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();  // Prevent bubbling to parent handlers
+                    const suiteItem = this.closest('.suite-item');
+                    const content = suiteItem.querySelector('.suite-content');
+                    const icon = this.querySelector('.toggle-icon');
+
+                    if (content) {
+                        content.classList.toggle('collapsed');
+                        const isCollapsed = content.classList.contains('collapsed');
+                        this.setAttribute('aria-expanded', !isCollapsed);
+                        icon.textContent = isCollapsed ? '▶' : '▼';
+                    }
+                });
+            });
+
+            // Handle testset toggle buttons (only direct children of testset-header)
+            document.querySelectorAll('.testset-header .toggle-btn').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();  // Prevent bubbling to parent handlers
+                    const testsetItem = this.closest('.testset-item');
+                    const content = testsetItem.querySelector('.test-list');
+                    const icon = this.querySelector('.toggle-icon');
+
+                    if (content) {
+                        content.classList.toggle('collapsed');
+                        const isCollapsed = content.classList.contains('collapsed');
+                        this.setAttribute('aria-expanded', !isCollapsed);
+                        icon.textContent = isCollapsed ? '▶' : '▼';
+                    }
+                });
+            });
+        });
+    </script>
 
 </main>
 </body>

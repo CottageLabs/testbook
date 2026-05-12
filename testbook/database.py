@@ -78,9 +78,10 @@ def sync_from_source_repo(
 ) -> int:
     """Synchronize test definitions from GitHub into the local database.
 
-    Reads all test YAML files from the source repository, parses them,
-    and upserts into the database. Existing records for the same
-    (repo_name, branch, file_path) are deleted first to ensure a clean sync.
+    Reads all test YAML files from the source repository, groups them by suite
+    and testset (matching core.py logic), and persists to the database.
+    
+    Files with the same `suite` value are combined into a single Suite object.
 
     Parameters
     ----------
@@ -93,7 +94,7 @@ def sync_from_source_repo(
     Returns
     -------
     int
-        Number of test files successfully synced.
+        Number of test suites successfully synced.
     """
     close_session = False
     if session is None:
@@ -101,115 +102,124 @@ def sync_from_source_repo(
         close_session = True
 
     try:
-        count = 0
+        # Step 1: Collect and structure all files by suite → testset
+        # This matches the logic in core.py read_structure()
+        suite_map = {}  # suite_name → testset_name → [(file_path, test_yaml)]
+        
         for file_path, test_yaml in source_repo.load_all_tests():
-            _sync_test_file(
-                session,
+            suite_name = test_yaml.get("suite", "")
+            testset_name = test_yaml.get("testset", "")
+            
+            if suite_name not in suite_map:
+                suite_map[suite_name] = {}
+            if testset_name not in suite_map[suite_name]:
+                suite_map[suite_name][testset_name] = []
+            
+            suite_map[suite_name][testset_name].append((file_path, test_yaml))
+        
+        # Step 2: Delete any pre-existing records for this repo/branch
+        existing = session.query(Suite).filter_by(
+            repo_name=source_repo.repo_name,
+            branch=source_repo.branch,
+        ).all()
+        for suite in existing:
+            session.delete(suite)
+        session.flush()
+        
+        # Step 3: Create Suite objects, one per unique suite name
+        count = 0
+        for suite_name in sorted(suite_map.keys()):
+            suite = Suite(
+                name=suite_name,
                 repo_name=source_repo.repo_name,
                 branch=source_repo.branch,
-                file_path=file_path,
-                test_yaml=test_yaml,
+                file_path="",  # Multiple files; not tracked at suite level
             )
+            session.add(suite)
+            session.flush()
+            
+            # Create TestSets and Tests for this Suite
+            testset_map = suite_map[suite_name]
+            for testset_idx, testset_name in enumerate(sorted(testset_map.keys())):
+                testset = TestSet(
+                    name=testset_name,
+                    suite_id=suite.id,
+                    order_index=testset_idx,
+                )
+                session.add(testset)
+                session.flush()
+                
+                # Collect all tests from all files for this testset
+                files_for_testset = testset_map[testset_name]
+                all_tests = []
+                for file_path, test_yaml_obj in files_for_testset:
+                    all_tests.extend(test_yaml_obj.get("tests", []))
+                
+                # Create Test objects, maintaining order across files
+                for test_idx, test_yaml_obj in enumerate(all_tests):
+                    test = Test(
+                        title=test_yaml_obj.get("title", ""),
+                        testset_id=testset.id,
+                        context=test_yaml_obj.get("context", {}),
+                        order_index=test_idx,
+                    )
+                    session.add(test)
+                    session.flush()
+                    
+                    # Parse setup items
+                    for setup_idx, setup_text in enumerate(test_yaml_obj.get("setup", [])):
+                        setup = SetupItem(
+                            test_id=test.id,
+                            text=setup_text,
+                            order_index=setup_idx,
+                        )
+                        session.add(setup)
+                    
+                    # Parse dependencies
+                    for dep in test_yaml_obj.get("depends", []):
+                        dep_obj = TestDependency(
+                            dependent_test_id=test.id,
+                            dep_suite_name=dep.get("suite", ""),
+                            dep_testset_name=dep.get("testset", ""),
+                            dep_test_title=dep.get("test"),
+                        )
+                        session.add(dep_obj)
+                    
+                    # Parse steps and results
+                    for step_idx, step_yaml_obj in enumerate(test_yaml_obj.get("steps", [])):
+                        step = Step(
+                            test_id=test.id,
+                            text=step_yaml_obj.get("step", ""),
+                            path=step_yaml_obj.get("path"),
+                            resource=step_yaml_obj.get("resource"),
+                            order_index=step_idx,
+                        )
+                        session.add(step)
+                        session.flush()
+                        
+                        # Parse results
+                        results_list = step_yaml_obj.get("results", [])
+                        for result_idx, result_item in enumerate(results_list):
+                            # Defensive: handle both string results and dict results
+                            if isinstance(result_item, str):
+                                result_text = result_item
+                            elif isinstance(result_item, dict):
+                                result_text = result_item.get("text") or str(result_item)
+                            else:
+                                result_text = str(result_item)
+                            
+                            result = Result(
+                                step_id=step.id,
+                                text=result_text,
+                                order_index=result_idx,
+                            )
+                            session.add(result)
+            
             count += 1
+        
         session.commit()
         return count
     finally:
         if close_session:
             session.close()
-
-
-def _sync_test_file(
-    session: Session,
-    repo_name: str,
-    branch: str,
-    file_path: str,
-    test_yaml: dict[str, Any],
-) -> None:
-    """Parse and persist a single test YAML file to the database.
-
-    If a Suite with the same (repo_name, branch, file_path) already exists,
-    it and all its child records are deleted first (soft upsert).
-    """
-    # Delete any pre-existing records for this file.
-    existing = session.query(Suite).filter_by(
-        repo_name=repo_name,
-        branch=branch,
-        file_path=file_path,
-    ).all()
-    for suite in existing:
-        session.delete(suite)
-
-    suite_name = test_yaml.get("suite", "")
-    testset_name = test_yaml.get("testset", "")
-
-    # Create or fetch suite.
-    suite = Suite(
-        name=suite_name,
-        repo_name=repo_name,
-        branch=branch,
-        file_path=file_path,
-    )
-    session.add(suite)
-    session.flush()  # Ensure suite.id is populated
-
-    # Create or fetch testset.
-    testset = TestSet(
-        name=testset_name,
-        suite_id=suite.id,
-        order_index=0,
-    )
-    session.add(testset)
-    session.flush()
-
-    # Parse tests and steps from the YAML.
-    tests_yaml = test_yaml.get("tests", [])
-    for test_idx, test_yaml_obj in enumerate(tests_yaml):
-        test = Test(
-            title=test_yaml_obj.get("title", ""),
-            testset_id=testset.id,
-            context=test_yaml_obj.get("context", {}),
-            order_index=test_idx,
-        )
-        session.add(test)
-        session.flush()
-
-        # Parse setup items.
-        for setup_idx, setup_text in enumerate(test_yaml_obj.get("setup", [])):
-            setup = SetupItem(
-                test_id=test.id,
-                text=setup_text,
-                order_index=setup_idx,
-            )
-            session.add(setup)
-
-        # Parse dependencies.
-        for dep in test_yaml_obj.get("depends", []):
-            dep_obj = TestDependency(
-                dependent_test_id=test.id,
-                dep_suite_name=dep.get("suite", ""),
-                dep_testset_name=dep.get("testset", ""),
-                dep_test_title=dep.get("test"),
-            )
-            session.add(dep_obj)
-
-        # Parse steps and results.
-        for step_idx, step_yaml_obj in enumerate(test_yaml_obj.get("steps", [])):
-            step = Step(
-                test_id=test.id,
-                text=step_yaml_obj.get("step", ""),
-                path=step_yaml_obj.get("path"),
-                resource=step_yaml_obj.get("resource"),
-                order_index=step_idx,
-            )
-            session.add(step)
-            session.flush()
-
-            # Parse results.
-            for result_idx, result_text in enumerate(step_yaml_obj.get("results", [])):
-                result = Result(
-                    step_id=step.id,
-                    text=result_text,
-                    order_index=result_idx,
-                )
-                session.add(result)
 

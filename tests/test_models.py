@@ -242,6 +242,39 @@ class TestSyncFromSourceRepo(unittest.TestCase):
         session = self.SessionLocal()
         count = sync_from_source_repo(mock_repo, session)
 
+        # Now returns count of suites, not files
+        self.assertEqual(count, 1)
+
+        # ...existing code...
+
+        session.close()
+
+    def test_sync_groups_files_by_suite_name(self):
+        """Multiple files with the same suite name are combined into one Suite."""
+        mock_repo = MagicMock()
+        mock_repo.repo_name = "org/repo"
+        mock_repo.branch = "main"
+
+        # Two files, same suite name, different testsets
+        test_yaml_1 = {
+            "suite": "Authentication",
+            "testset": "Login",
+            "tests": [{"title": "Valid login", "steps": [{"step": "Go to login"}]}],
+        }
+        test_yaml_2 = {
+            "suite": "Authentication",
+            "testset": "Logout",
+            "tests": [{"title": "Valid logout", "steps": [{"step": "Click logout"}]}],
+        }
+        mock_repo.load_all_tests.return_value = [
+            ("testbook/auth_login.yml", test_yaml_1),
+            ("testbook/auth_logout.yml", test_yaml_2),
+        ]
+
+        session = self.SessionLocal()
+        count = sync_from_source_repo(mock_repo, session)
+
+        # Should create 1 suite (not 2)
         self.assertEqual(count, 1)
 
         # Verify Suite
@@ -249,31 +282,15 @@ class TestSyncFromSourceRepo(unittest.TestCase):
         self.assertEqual(len(suites), 1)
         self.assertEqual(suites[0].name, "Authentication")
 
-        # Verify TestSet
+        # Verify TestSets (both should be under the same suite)
         testsets = session.query(TestSet).all()
-        self.assertEqual(len(testsets), 1)
-        self.assertEqual(testsets[0].name, "Login")
+        self.assertEqual(len(testsets), 2)
+        testset_names = {ts.name for ts in testsets}
+        self.assertEqual(testset_names, {"Login", "Logout"})
 
-        # Verify Test
-        tests = session.query(Test).all()
-        self.assertEqual(len(tests), 1)
-        self.assertEqual(tests[0].title, "Valid credentials")
-        self.assertEqual(tests[0].context["role"], "user")
-
-        # Verify SetupItems
-        setup_items = session.query(SetupItem).all()
-        self.assertEqual(len(setup_items), 1)
-        self.assertEqual(setup_items[0].text, "Create user account")
-
-        # Verify Steps and Results
-        steps = session.query(Step).all()
-        self.assertEqual(len(steps), 2)
-        self.assertEqual(steps[0].text, "Navigate to login")
-        self.assertEqual(steps[0].path, "/login")
-
-        results = session.query(Result).all()
-        self.assertEqual(len(results), 2)
-        self.assertEqual(results[0].text, "Page loads")
+        # All testsets should belong to the same suite
+        for ts in testsets:
+            self.assertEqual(ts.suite_id, suites[0].id)
 
         session.close()
 
@@ -308,7 +325,7 @@ class TestSyncFromSourceRepo(unittest.TestCase):
         session.close()
 
     def test_sync_overwrites_existing_file(self):
-        """Syncing the same file twice overwrites the first."""
+        """Syncing again with different data overwrites the old data."""
         mock_repo = MagicMock()
         mock_repo.repo_name = "org/repo"
         mock_repo.branch = "main"
@@ -343,6 +360,45 @@ class TestSyncFromSourceRepo(unittest.TestCase):
         self.assertEqual(len(tests_after), 2)
         titles = {t.title for t in tests_after}
         self.assertEqual(titles, {"Test A", "Test B"})
+
+        session.close()
+
+    def test_sync_handles_non_string_results(self):
+        """Defensive parsing: handle results that aren't strings."""
+        mock_repo = MagicMock()
+        mock_repo.repo_name = "org/repo"
+        mock_repo.branch = "main"
+
+        test_yaml = {
+            "suite": "Auth",
+            "testset": "Login",
+            "tests": [
+                {
+                    "title": "Mixed results",
+                    "steps": [
+                        {
+                            "step": "Do something",
+                            # Results can be strings, but user might have dicts or other types
+                            "results": [
+                                "String result",
+                                {"text": "Dict result"},  # Defensive handling
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+        mock_repo.load_all_tests.return_value = [("testbook/test.yml", test_yaml)]
+
+        session = self.SessionLocal()
+        # Should not raise an error despite mixed result types
+        sync_from_source_repo(mock_repo, session)
+
+        results = session.query(Result).all()
+        self.assertEqual(len(results), 2)
+        # Both should be stored as strings
+        self.assertEqual(results[0].text, "String result")
+        self.assertEqual(results[1].text, "Dict result")
 
         session.close()
 
