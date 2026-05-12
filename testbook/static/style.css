@@ -1,0 +1,82 @@
+:root {
+    color-scheme: light;
+    font-family: Arial, sans-serif;
+    line-height: 1.5;
+    --bg: #f5f7fb;
+    --card: #ffffff;
+    --border: #d8deea;
+    --text: #1f2937;
+    --muted: #5b6472;
+    --accent: #2563eb;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: linear-gradient(180deg, #eef4ff 0%, var(--bg) 100%);
+    color: var(--text);
+}
+
+.page {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 48px 20px 64px;
+}
+
+.hero,
+.panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(37, 99, 235, 0.08);
+    padding: 24px;
+}
+
+.hero {
+    margin-bottom: 20px;
+}
+
+.panel + .panel {
+    margin-top: 20px;
+}
+
+.eyebrow {
+    margin: 0 0 8px;
+    color: var(--accent);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.8rem;
+}
+
+h1,
+h2 {
+    margin-top: 0;
+}
+
+.lead,
+li,
+p {
+    color: var(--muted);
+}
+
+ul {
+    padding-left: 20px;
+}
+
+code,
+pre {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+pre {
+    overflow-x: auto;
+    background: #111827;
+    color: #f9fafb;
+    border-radius: 12px;
+    padding: 16px;
+}
+

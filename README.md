@@ -2,6 +2,24 @@
 
 A tool for converting Functional Test definitions in your codebase to HTML/CSV scripts for humans to work with
 
+## Basic web app
+
+This project now also includes a small Flask web application with an index page.
+
+Run it with either:
+
+```bash
+flask --app testbook.web:create_app run
+```
+
+or:
+
+```bash
+testbook-web
+```
+
+Then open `http://127.0.0.1:5000/` to view the index page.
+
 ## Building a testbook
 
 General form is

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ project_name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="page">
+        <section class="hero">
+            <p class="eyebrow">Flask app</p>
+            <h1>Welcome to {{ project_name }}</h1>
+            <p class="lead">
+                This basic web app is now bundled with the project and serves this index page from the root route.
+            </p>
+        </section>
+
+        <section class="panel">
+            <h2>What’s included</h2>
+            <ul>
+                <li>A Flask application factory in <code>testbook.web:create_app</code></li>
+                <li>An index page at <code>/</code></li>
+                <li>Packaged templates and static assets for installation and distribution</li>
+            </ul>
+        </section>
+
+        <section class="panel">
+            <h2>Run it locally</h2>
+            <p>Start the app with either the Flask runner or the included console script.</p>
+            <pre><code>flask --app testbook.web:create_app run
+# or
+testbook-web</code></pre>
+        </section>
+    </main>
+</body>
+</html>
+
