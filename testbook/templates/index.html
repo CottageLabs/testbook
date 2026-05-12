@@ -3,36 +3,74 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ project_name }}</title>
+    <title>Testbook{% if repo_name %} — {{ repo_name }}{% endif %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <main class="page">
-        <section class="hero">
-            <p class="eyebrow">Flask app</p>
-            <h1>Welcome to {{ project_name }}</h1>
-            <p class="lead">
-                This basic web app is now bundled with the project and serves this index page from the root route.
-            </p>
-        </section>
+<main class="page">
 
-        <section class="panel">
-            <h2>What’s included</h2>
-            <ul>
-                <li>A Flask application factory in <code>testbook.web:create_app</code></li>
-                <li>An index page at <code>/</code></li>
-                <li>Packaged templates and static assets for installation and distribution</li>
-            </ul>
-        </section>
+    <header class="hero">
+        <p class="eyebrow">Testbook</p>
+        <h1>{% if repo_name %}{{ repo_name }}{% else %}Test Repository{% endif %}</h1>
+        {% if tests_path %}
+        <p class="lead">Test definitions in <code>{{ tests_path }}/</code></p>
+        {% endif %}
+    </header>
 
-        <section class="panel">
-            <h2>Run it locally</h2>
-            <p>Start the app with either the Flask runner or the included console script.</p>
-            <pre><code>flask --app testbook.web:create_app run
-# or
-testbook-web</code></pre>
-        </section>
-    </main>
+    {# ------------------------------------------------------------------ #}
+    {# Error banner                                                         #}
+    {# ------------------------------------------------------------------ #}
+    {% if error %}
+    <section class="panel panel--error">
+        <h2>Configuration problem</h2>
+        <p>{{ error }}</p>
+        <p>Edit <code>config.yml</code> (see <code>config.yml.example</code> for the expected shape) and restart the server.</p>
+    </section>
+    {% endif %}
+
+    {# ------------------------------------------------------------------ #}
+    {# Branch selector + file list                                          #}
+    {# ------------------------------------------------------------------ #}
+    {% if not error %}
+    <section class="panel">
+        <form method="get" action="/" class="branch-form">
+            <label for="branch-select" class="branch-label">Branch</label>
+            <select id="branch-select" name="branch" onchange="this.form.submit()">
+                {% for branch in branches %}
+                <option value="{{ branch }}"
+                    {% if branch == selected_branch %}selected{% endif %}>
+                    {{ branch }}
+                </option>
+                {% endfor %}
+            </select>
+            <noscript>
+                <button type="submit">Go</button>
+            </noscript>
+        </form>
+    </section>
+
+    <section class="panel">
+        <h2>
+            Test files
+            <span class="badge">{{ test_files | length }}</span>
+        </h2>
+
+        {% if test_files %}
+        <ul class="file-list">
+            {% for f in test_files %}
+            <li class="file-item">
+                <a href="{{ f.url }}" target="_blank" rel="noopener" class="file-link">
+                    {{ f.path }}
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="muted">No YAML test files found in <code>{{ tests_path }}/</code> on branch <strong>{{ selected_branch }}</strong>.</p>
+        {% endif %}
+    </section>
+    {% endif %}
+
+</main>
 </body>
 </html>
-

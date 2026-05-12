@@ -55,3 +55,7 @@ Temporary Items
 
 # App specific ignores
 .~lock.Testbook template.xlsx#
+
+# Testbook config contains credentials — never commit the real file
+config.yml
+

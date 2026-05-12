@@ -1,0 +1,20 @@
+# =============================================================================
+# Testbook configuration — EXAMPLE FILE
+# =============================================================================
+# Copy this file to config.yml and fill in the real values.
+# config.yml is listed in .gitignore and must never be committed.
+# =============================================================================
+
+source_repo:
+  repo_name: "myorg/myproject"
+  tests_path: "testbook"
+  default_branch: "main"
+  # Leave blank and set TESTBOOK_SOURCE_TOKEN env var instead for production:
+  github_token: ""
+
+plans_repo:
+  repo_name: "myorg/test-plans"
+  default_branch: "main"
+  # Leave blank and set TESTBOOK_PLANS_TOKEN env var instead for production:
+  github_token: ""
+

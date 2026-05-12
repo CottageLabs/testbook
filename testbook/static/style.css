@@ -80,3 +80,84 @@ pre {
     padding: 16px;
 }
 
+/* Branch selector */
+.branch-form {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.branch-label {
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+}
+
+#branch-select {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    background: var(--bg);
+    color: var(--text);
+    cursor: pointer;
+}
+
+/* File list */
+.file-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.file-item {
+    border-bottom: 1px solid var(--border);
+    padding: 10px 4px;
+}
+
+.file-item:last-child {
+    border-bottom: none;
+}
+
+.file-link {
+    color: var(--accent);
+    text-decoration: none;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.9rem;
+}
+
+.file-link:hover {
+    text-decoration: underline;
+}
+
+/* Count badge next to headings */
+.badge {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    vertical-align: middle;
+    margin-left: 6px;
+}
+
+/* Error panel */
+.panel--error {
+    border-color: #fca5a5;
+    background: #fff5f5;
+}
+
+.panel--error h2 {
+    color: #b91c1c;
+}
+
+.panel--error p {
+    color: #7f1d1d;
+}
+
+.muted {
+    color: var(--muted);
+}
+
