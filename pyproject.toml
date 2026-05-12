@@ -21,6 +21,7 @@ dependencies = [
     "MarkupSafe~=2.1.5",
     "PyGithub>=2.1.0",
     "pyyaml~=6.0.2",
+    "SQLAlchemy>=2.0.0",
 ]
 
 [project.scripts]
