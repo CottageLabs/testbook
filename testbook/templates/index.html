@@ -20,7 +20,7 @@
                     <label for="branch-select" class="branch-label">Branch</label>
                     <select id="branch-select" name="branch" onchange="this.form.submit()">
                         {% for branch in branches %}
-                        <option value="{{ branch }}"{% if branch == selected_branch %} selected{% endif %}>{{ branch }}</option>
+                        <option value="{{ branch }}" {% if branch == selected_branch %}selected{% endif %}>{{ branch }}</option>
                         {% endfor %}
                     </select>
                     <noscript><button type="submit">Go</button></noscript>
@@ -61,18 +61,160 @@
 
         <main class="app-main">
             <section class="content-panel">
-                <h2>test content here</h2>
-                <p class="lead">This area will later show the selected suite, test plan, or execution details.</p>
-                {% if selected_branch %}
-                <p class="muted">Active branch: <strong>{{ selected_branch }}</strong></p>
-                {% endif %}
+                <div id="test-content-root">
+                    <h2>Test content</h2>
+                    <p class="lead">Select a testset or a test from the left navigation to view details.</p>
+                </div>
             </section>
         </main>
     </div>
 </div>
 
+<script id="suite-data" type="application/json">{{ suite_payload|tojson }}</script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        const suiteDataNode = document.getElementById('suite-data');
+        const suiteData = suiteDataNode ? JSON.parse(suiteDataNode.textContent || '[]') : [];
+        const contentRoot = document.getElementById('test-content-root');
+        const appMain = document.querySelector('.app-main');
+
+        function escapeHtml(text) {
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        const testsetById = new Map();
+        const testById = new Map();
+        suiteData.forEach(suite => {
+            (suite.testsets || []).forEach(testset => {
+                testsetById.set(String(testset.id), { suite: suite, testset: testset });
+                (testset.tests || []).forEach(test => {
+                    testById.set(String(test.id), { suite: suite, testset: testset, test: test });
+                });
+            });
+        });
+
+        function renderTestset(testsetWrap) {
+            const testset = testsetWrap.testset;
+            const suite = testsetWrap.suite;
+            if (!contentRoot) {
+                return;
+            }
+
+            const testsHtml = (testset.tests || []).map((test, testIdx) => {
+                const contextEntries = Object.entries(test.context || {});
+                const contextHtml = contextEntries.length
+                    ? `<div class="test-context"><h4>Context</h4><ul>${contextEntries.map(([k, v]) => `<li><strong>${escapeHtml(k)}:</strong> ${escapeHtml(v)}</li>`).join('')}</ul></div>`
+                    : '';
+                const setupHtml = (test.setup || []).length
+                    ? `<div class="test-setup"><h4>Setup</h4><ul>${test.setup.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>`
+                    : '';
+                const stepsHtml = (test.steps || []).map((step, stepIdx) => {
+                    const resultsHtml = (step.results || []).length
+                        ? `<div class="step-results"><h5>Expected results</h5><ul>${step.results.map(result => `<li>${escapeHtml(result)}</li>`).join('')}</ul></div>`
+                        : '';
+                    const linksHtml = [
+                        step.path ? `<div class="step-link"><strong>Path:</strong> ${escapeHtml(step.path)}</div>` : '',
+                        step.resource ? `<div class="step-link"><strong>Resource:</strong> ${escapeHtml(step.resource)}</div>` : ''
+                    ].join('');
+                    return `<li class="step-item"><div class="step-instruction"><span class="step-number">${stepIdx + 1}.</span> ${escapeHtml(step.text || '')}</div>${linksHtml}${resultsHtml}</li>`;
+                }).join('');
+
+                return `
+                    <article class="test-card" id="test-${escapeHtml(test.id)}">
+                        <h3>${testIdx + 1}. ${escapeHtml(test.title)}</h3>
+                        ${contextHtml}
+                        ${setupHtml}
+                        <div class="test-steps">
+                            <h4>Steps</h4>
+                            <ol>${stepsHtml}</ol>
+                        </div>
+                    </article>
+                `;
+            }).join('');
+
+            contentRoot.innerHTML = `
+                <header class="testset-header-main">
+                    <h2>${escapeHtml(suite.name)}: ${escapeHtml(testset.name)}</h2>
+                    <p class="muted">${(testset.tests || []).length} test${(testset.tests || []).length === 1 ? '' : 's'}</p>
+                </header>
+                ${testsHtml || '<p class="muted">No tests in this testset.</p>'}
+            `;
+        }
+
+        function setActiveTarget(target) {
+            document.querySelectorAll('.nav-target.is-active').forEach(node => node.classList.remove('is-active'));
+            const directTarget = document.querySelector(`.nav-target[data-target="${target}"]`);
+            if (directTarget) {
+                directTarget.classList.add('is-active');
+            }
+        }
+
+        function loadTarget(target, pushHash) {
+            if (!target) {
+                return;
+            }
+
+            let selectedWrap = null;
+            let selectedTestId = null;
+            if (target.startsWith('set/')) {
+                const testsetId = target.split('/')[1];
+                selectedWrap = testsetById.get(String(testsetId)) || null;
+            } else if (target.startsWith('test/')) {
+                const testId = target.split('/')[1];
+                const testWrap = testById.get(String(testId)) || null;
+                if (testWrap) {
+                    selectedWrap = { suite: testWrap.suite, testset: testWrap.testset };
+                    selectedTestId = String(testWrap.test.id);
+                }
+            }
+
+            if (!selectedWrap) {
+                return;
+            }
+
+            renderTestset(selectedWrap);
+            setActiveTarget(target);
+
+            if (selectedTestId) {
+                const testElement = document.getElementById(`test-${selectedTestId}`);
+                if (testElement) {
+                    testElement.scrollIntoView({ block: 'start', behavior: 'smooth' });
+                }
+            } else if (appMain) {
+                appMain.scrollTop = 0;
+            }
+
+            if (pushHash) {
+                history.pushState(null, '', `#${target}`);
+            }
+        }
+
+        document.querySelectorAll('.nav-target').forEach(node => {
+            node.addEventListener('click', function(event) {
+                event.preventDefault();
+                loadTarget(this.getAttribute('data-target'), true);
+            });
+        });
+
+        const initialHash = window.location.hash ? window.location.hash.substring(1) : '';
+        if (initialHash) {
+            loadTarget(initialHash, false);
+        } else if (suiteData.length > 0 && suiteData[0].testsets && suiteData[0].testsets.length > 0) {
+            loadTarget(`set/${suiteData[0].testsets[0].id}`, false);
+        }
+
+        window.addEventListener('hashchange', function() {
+            const hash = window.location.hash ? window.location.hash.substring(1) : '';
+            if (hash) {
+                loadTarget(hash, false);
+            }
+        });
+
         // Handle expand all button
         const expandAllBtn = document.querySelector('.btn-expand-all');
         if (expandAllBtn) {

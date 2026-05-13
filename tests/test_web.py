@@ -104,7 +104,7 @@ class TestIndexRoute(unittest.TestCase):
         self.session_mock_obj.return_value = session_instance
 
         response = self.client.get("/")
-        self.assertIn(b"test content here", response.data)
+        self.assertIn(b"Select a testset or a test from the left navigation to view details.", response.data)
         self.assertIn(b"Test Plans", response.data)
         self.assertIn(b"Executions", response.data)
 

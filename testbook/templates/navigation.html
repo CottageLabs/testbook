@@ -1,17 +1,17 @@
 <div class="panel-title-row">
     <h2>Test Suites</h2>
-    {% if suites %}
+    {% if suite_payload %}
     <div class="nav-controls">
         <button class="btn-expand-all" type="button" title="Expand all">▼</button>
         <button class="btn-collapse-all" type="button" title="Collapse all">▶</button>
-        <span class="badge">{{ suites | length }}</span>
+        <span class="badge">{{ suite_payload | length }}</span>
     </div>
     {% endif %}
 </div>
 
-{% if suites %}
+{% if suite_payload %}
 <ul class="suite-list">
-    {% for suite in suites %}
+    {% for suite in suite_payload %}
     <li class="suite-item" data-suite-id="{{ suite.id }}">
         <div class="suite-header">
             <button class="toggle-btn" type="button" aria-expanded="true" aria-label="Toggle suite">
@@ -29,7 +29,12 @@
                     <button class="toggle-btn" type="button" aria-expanded="true" aria-label="Toggle testset">
                         <span class="toggle-icon">▼</span>
                     </button>
-                    <span class="testset-name">{{ testset.name }}</span>
+                    <button
+                        class="testset-name nav-link nav-target"
+                        type="button"
+                        data-target="set/{{ testset.id }}"
+                        id="nav-set-{{ testset.id }}"
+                    >{{ testset.name }}</button>
                     <span class="test-count">{{ testset.tests | length }} test{{ '' if testset.tests | length == 1 else 's' }}</span>
                 </div>
 
@@ -37,7 +42,13 @@
                 <ul class="test-list testset-content" data-testset-id="{{ testset.id }}">
                     {% for test in testset.tests %}
                     <li class="test-item">
-                        <span class="test-title">{{ test.title }}</span>
+                        <button
+                            class="test-title nav-link nav-target"
+                            type="button"
+                            data-target="test/{{ test.id }}"
+                            data-parent-set-id="{{ testset.id }}"
+                            id="nav-test-{{ test.id }}"
+                        >{{ test.title }}</button>
                     </li>
                     {% endfor %}
                 </ul>
