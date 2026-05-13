@@ -1,12 +1,18 @@
 {% extends "base.html" %}
 
+{% block branch_form_hidden %}
+{% if selected_plan_id %}
+<input type="hidden" name="plan_id" value="{{ selected_plan_id }}">
+{% endif %}
+{% endblock %}
+
 {% block sidebar %}
-{% include("navigation.html") %}
+{% include("plans_navigation.html") %}
 {% endblock %}
 
 {% block content_placeholder %}
-<h2>Test content</h2>
-<p class="lead">Select a testset or a test from the left navigation to view details.</p>
+<h2>Plan content</h2>
+<p class="lead">Select a testset or test from the selected plan to view details.</p>
 {% endblock %}
 
 {% block page_data %}
@@ -15,3 +21,4 @@
 <script id="selected-branch" type="application/json">{{ selected_branch|tojson }}</script>
 <script id="freshness-check-interval" type="application/json">{{ freshness_check_interval_seconds|tojson }}</script>
 {% endblock %}
+

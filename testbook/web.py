@@ -6,7 +6,18 @@ from urllib.parse import quote
 from testbook.config import ConfigurationError, get_source_repo_config
 from testbook.database import get_session, init_db, sync_from_source_repo
 from testbook.github_connector import SourceRepo
-from testbook.models import BranchSyncState, Result, SetupItem, Step, Suite, Test, TestDependency, TestSet
+from testbook.models import (
+    BranchSyncState,
+    Result,
+    SetupItem,
+    Step,
+    Suite,
+    Test,
+    TestDependency,
+    TestPlan,
+    TestPlanItem,
+    TestSet,
+)
 
 
 def _make_source_repo(branch: str | None = None) -> SourceRepo:
@@ -209,6 +220,77 @@ def _build_suite_payload(
     return payload
 
 
+def _filter_suite_payload_by_test_ids(
+    suite_payload: list[dict[str, object]],
+    test_ids: set[str],
+) -> list[dict[str, object]]:
+    """Return a suite payload restricted to tests whose IDs are in test_ids."""
+    if not test_ids:
+        return []
+
+    filtered_suites: list[dict[str, object]] = []
+    for suite in suite_payload:
+        raw_testsets = _list_value(suite.get("testsets", [])) if isinstance(suite, dict) else []
+        filtered_testsets: list[dict[str, object]] = []
+
+        for testset in raw_testsets:
+            if not isinstance(testset, dict):
+                continue
+            raw_tests = _list_value(testset.get("tests", []))
+            filtered_tests = [
+                test
+                for test in raw_tests
+                if isinstance(test, dict) and str(test.get("id", "")) in test_ids
+            ]
+            if filtered_tests:
+                filtered_testset = dict(testset)
+                filtered_testset["tests"] = filtered_tests
+                filtered_testsets.append(filtered_testset)
+
+        if filtered_testsets and isinstance(suite, dict):
+            filtered_suite = dict(suite)
+            filtered_suite["testsets"] = filtered_testsets
+            filtered_suites.append(filtered_suite)
+
+    return filtered_suites
+
+
+def _serialize_plans(plans: list[TestPlan]) -> list[dict[str, object]]:
+    serialized: list[dict[str, object]] = []
+    for plan in plans:
+        raw_items = _list_value(getattr(plan, "plan_items", []))
+        serialized.append(
+            {
+                "id": _id_value(getattr(plan, "id", ""), ""),
+                "title": _text_value(getattr(plan, "title", ""), "Untitled plan"),
+                "test_count": len(raw_items),
+            }
+        )
+    return serialized
+
+
+def _default_render_context() -> dict[str, object]:
+    return {
+        "error": None,
+        "repo_name": None,
+        "branches": [],
+        "selected_branch": None,
+        "suite_payload": [],
+        "show_sync_button": False,
+        "need_sync": False,
+        "default_base_url": "http://localhost:5004/",
+        "freshness_check_interval_seconds": 1800,
+        "last_synced_at_iso": None,
+        "last_synced_display": "Never",
+        "active_nav": "suites",
+        "branch_form_action": "/",
+        "return_view": "suites",
+        "plans": [],
+        "selected_plan_id": None,
+        "selected_plan_title": "",
+    }
+
+
 def create_app() -> Flask:
     app = Flask(__name__, template_folder="templates", static_folder="static")
 
@@ -276,6 +358,9 @@ def create_app() -> Flask:
                     freshness_check_interval_seconds=interval_seconds,
                     last_synced_at_iso=_iso_timestamp(last_synced_at),
                     last_synced_display=_display_timestamp(last_synced_at),
+                    active_nav="suites",
+                    branch_form_action="/",
+                    return_view="suites",
                 )
             else:
                 # No cached data; show sync button
@@ -293,40 +378,165 @@ def create_app() -> Flask:
                     freshness_check_interval_seconds=interval_seconds,
                     last_synced_at_iso=_iso_timestamp(last_synced_at),
                     last_synced_display=_display_timestamp(last_synced_at),
+                    active_nav="suites",
+                    branch_form_action="/",
+                    return_view="suites",
                 )
 
         except ConfigurationError as exc:
-            return render_template(
-                "index.html",
-                error=str(exc),
-                repo_name=None,
-                branches=[],
-                selected_branch=None,
-                suites=[],
-                suite_payload=[],
-                show_sync_button=False,
-                need_sync=False,
-                default_base_url="http://localhost:5004/",
-                freshness_check_interval_seconds=1800,
-                last_synced_at_iso=None,
-                last_synced_display="Never",
-            )
+            context = _default_render_context()
+            context.update({"error": str(exc), "active_nav": "suites"})
+            return render_template("index.html", **context)
         except Exception as exc:
-            return render_template(
-                "index.html",
-                error=f"GitHub error: {exc}",
-                repo_name=None,
-                branches=[],
-                selected_branch=None,
-                suites=[],
-                suite_payload=[],
-                show_sync_button=False,
-                need_sync=False,
-                default_base_url="http://localhost:5004/",
-                freshness_check_interval_seconds=1800,
-                last_synced_at_iso=None,
-                last_synced_display="Never",
+            context = _default_render_context()
+            context.update({"error": f"GitHub error: {exc}", "active_nav": "suites"})
+            return render_template("index.html", **context)
+
+    @app.get("/plans")
+    def plans_index() -> str:
+        try:
+            cfg = get_source_repo_config()
+            default_branch = cfg["default_branch"]
+            selected_branch = request.args.get("branch", default_branch)
+            interval_seconds = max(60, _int_value(cfg.get("freshness_check_interval_seconds", 1800), 1800))
+
+            selected_plan_id_raw = request.args.get("plan_id", "")
+
+            session = get_session()
+            cached_suites = (
+                session.query(Suite)
+                .options(
+                    joinedload(Suite.testsets)
+                    .joinedload(TestSet.tests)
+                    .joinedload(Test.steps)
+                    .joinedload(Step.results),
+                    joinedload(Suite.testsets)
+                    .joinedload(TestSet.tests)
+                    .joinedload(Test.setup_items),
+                    joinedload(Suite.testsets)
+                    .joinedload(TestSet.tests)
+                    .joinedload(Test.dependencies),
+                )
+                .filter_by(
+                    repo_name=cfg["repo_name"],
+                    branch=selected_branch,
+                )
+                .all()
             )
+            sync_state = (
+                session.query(BranchSyncState)
+                .filter_by(repo_name=cfg["repo_name"], branch=selected_branch)
+                .first()
+            )
+            plans = (
+                session.query(TestPlan)
+                .options(
+                    joinedload(TestPlan.plan_items).joinedload(TestPlanItem.test),
+                )
+                .filter_by(repo_name=cfg["repo_name"], branch=selected_branch)
+                .order_by(TestPlan.updated_at.desc(), TestPlan.id.asc())
+                .all()
+            )
+            session.close()
+
+            selected_plan: TestPlan | None = None
+            if selected_plan_id_raw:
+                selected_plan = next(
+                    (plan for plan in plans if str(getattr(plan, "id", "")) == selected_plan_id_raw),
+                    None,
+                )
+            if selected_plan is None and plans:
+                selected_plan = plans[0]
+
+            suite_payload = _build_suite_payload(
+                cached_suites,
+                _text_value(cfg.get("resources_path", ""), ""),
+            )
+            plan_test_ids = set()
+            if selected_plan is not None:
+                sorted_items = sorted(
+                    _list_value(getattr(selected_plan, "plan_items", [])),
+                    key=lambda item: _order_value(getattr(item, "order_index", None), 0),
+                )
+                plan_test_ids = {
+                    _id_value(getattr(item, "test_id", ""), "")
+                    for item in sorted_items
+                    if _id_value(getattr(item, "test_id", ""), "")
+                }
+            filtered_payload = _filter_suite_payload_by_test_ids(suite_payload, plan_test_ids)
+
+            branches = _make_source_repo(selected_branch).list_branches()
+            last_synced_at = _to_utc(getattr(sync_state, "last_synced_at", None))
+
+            return render_template(
+                "plans.html",
+                error=None,
+                repo_name=cfg["repo_name"],
+                branches=branches,
+                selected_branch=selected_branch,
+                suite_payload=filtered_payload,
+                plans=_serialize_plans(plans),
+                selected_plan_id=_id_value(getattr(selected_plan, "id", ""), "") if selected_plan else "",
+                selected_plan_title=_text_value(getattr(selected_plan, "title", ""), ""),
+                show_sync_button=True,
+                need_sync=not cached_suites,
+                default_base_url=cfg.get("default_base_url", "http://localhost:5004/"),
+                freshness_check_interval_seconds=interval_seconds,
+                last_synced_at_iso=_iso_timestamp(last_synced_at),
+                last_synced_display=_display_timestamp(last_synced_at),
+                active_nav="plans",
+                branch_form_action="/plans",
+                return_view="plans",
+            )
+        except ConfigurationError as exc:
+            context = _default_render_context()
+            context.update(
+                {
+                    "error": str(exc),
+                    "active_nav": "plans",
+                    "branch_form_action": "/plans",
+                    "return_view": "plans",
+                }
+            )
+            return render_template("plans.html", **context)
+        except Exception as exc:
+            context = _default_render_context()
+            context.update(
+                {
+                    "error": f"GitHub error: {exc}",
+                    "active_nav": "plans",
+                    "branch_form_action": "/plans",
+                    "return_view": "plans",
+                }
+            )
+            return render_template("plans.html", **context)
+
+    @app.post("/plans/add")
+    def add_plan() -> str:
+        try:
+            cfg = get_source_repo_config()
+            selected_branch = request.form.get("branch", cfg["default_branch"])
+            session = get_session()
+            existing_count = (
+                session.query(TestPlan)
+                .filter_by(repo_name=cfg["repo_name"], branch=selected_branch)
+                .count()
+            )
+            now = datetime.now(timezone.utc)
+            plan = TestPlan(
+                title=f"New Plan {existing_count + 1}",
+                repo_name=cfg["repo_name"],
+                branch=selected_branch,
+                created_at=now,
+                updated_at=now,
+            )
+            session.add(plan)
+            session.commit()
+            plan_id = str(plan.id)
+            session.close()
+            return redirect(url_for("plans_index", branch=selected_branch, plan_id=plan_id))
+        except Exception:
+            return redirect(url_for("plans_index"))
 
     @app.get("/api/default-base-url")
     def get_default_base_url() -> dict:
@@ -379,12 +589,15 @@ def create_app() -> Flask:
         try:
             cfg = get_source_repo_config()
             selected_branch = request.form.get("branch", cfg["default_branch"])
+            return_view = request.form.get("return_view", "suites")
 
             repo = _make_source_repo(selected_branch)
             session = get_session()
             count = sync_from_source_repo(repo, session)
             session.close()
 
+            if return_view == "plans":
+                return redirect(url_for("plans_index", branch=selected_branch))
             return redirect(url_for("index", branch=selected_branch))
         except Exception as exc:
             error_msg = str(exc)

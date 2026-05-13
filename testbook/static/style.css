@@ -366,6 +366,10 @@ p {
     margin-bottom: 10px;
 }
 
+.panel-title-row--plans {
+    margin-bottom: 8px;
+}
+
 .panel-title-row h2,
 .content-panel h2,
 .panel--error h2 {
@@ -390,6 +394,39 @@ p {
     font-weight: 600;
     color: var(--text);
     transition: all 0.2s ease;
+}
+
+.plan-select-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+#plan-select {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    background: var(--surface-alt);
+    color: var(--text);
+    cursor: pointer;
+    min-width: 180px;
+}
+
+.add-plan-form {
+    margin-left: auto;
+}
+
+.btn-add-plan {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    background: var(--accent);
+    color: #fff;
+}
+
+.btn-add-plan:hover {
+    opacity: 0.92;
 }
 
 .btn-expand-all:hover,

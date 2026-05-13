@@ -394,6 +394,101 @@ class TestSyncRoute(unittest.TestCase):
         # (checked via the redirect location)
         self.sync_mock.assert_called_once()
 
+    def test_sync_endpoint_redirects_to_plans_when_return_view_is_plans(self):
+        session_instance = MagicMock()
+        self.session_mock_obj.return_value = session_instance
+
+        response = self.client.post(
+            "/sync",
+            data={"branch": "main", "return_view": "plans"},
+            follow_redirects=False,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/plans", response.location)
+        self.assertIn("branch=main", response.location)
+
+
+class TestPlansRoute(unittest.TestCase):
+
+    def setUp(self):
+        reset_config()
+        self.cfg_patcher = patch(
+            "testbook.web.get_source_repo_config",
+            return_value={
+                "repo_name": "org/repo",
+                "default_branch": "main",
+                "tests_path": "testbook",
+                "github_token": "tok",
+            },
+        )
+        self.cfg_patcher.start()
+
+        self.repo_mock = _mock_source_repo()
+        self.repo_patcher = patch("testbook.web._make_source_repo", return_value=self.repo_mock)
+        self.repo_patcher.start()
+
+        self.session_patcher = patch("testbook.web.get_session")
+        self.session_mock_obj = self.session_patcher.start()
+
+        self.init_db_patcher = patch("testbook.web.init_db")
+        self.init_db_patcher.start()
+
+        from testbook.web import create_app
+        self.app = create_app()
+        self.app.config["TESTING"] = True
+        self.client = self.app.test_client()
+
+    def tearDown(self):
+        self.cfg_patcher.stop()
+        self.repo_patcher.stop()
+        self.session_patcher.stop()
+        self.init_db_patcher.stop()
+        reset_config()
+
+    def test_plans_route_returns_200_and_highlights_nav(self):
+        session_instance = MagicMock()
+        suites_query = MagicMock()
+        suites_query.options.return_value.filter_by.return_value.all.return_value = []
+
+        sync_query = MagicMock()
+        sync_query.filter_by.return_value.first.return_value = None
+
+        plans_query = MagicMock()
+        plans_query.options.return_value.filter_by.return_value.order_by.return_value.all.return_value = []
+
+        session_instance.query.side_effect = [suites_query, sync_query, plans_query]
+        self.session_mock_obj.return_value = session_instance
+
+        response = self.client.get("/plans")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Test Plans", response.data)
+        self.assertIn(b"subnav-link active\" href=\"/plans", response.data)
+        self.assertIn(b"Add Plan", response.data)
+
+    def test_plans_route_shows_plan_tests_navigation(self):
+        suite = _mock_suite("Authentication", 1)
+        plan_item = SimpleNamespace(test_id=suite.testsets[0].tests[0].id, order_index=0)
+        plan = SimpleNamespace(id=7, title="Smoke Plan", plan_items=[plan_item])
+
+        session_instance = MagicMock()
+        suites_query = MagicMock()
+        suites_query.options.return_value.filter_by.return_value.all.return_value = [suite]
+
+        sync_query = MagicMock()
+        sync_query.filter_by.return_value.first.return_value = None
+
+        plans_query = MagicMock()
+        plans_query.options.return_value.filter_by.return_value.order_by.return_value.all.return_value = [plan]
+
+        session_instance.query.side_effect = [suites_query, sync_query, plans_query]
+        self.session_mock_obj.return_value = session_instance
+
+        response = self.client.get("/plans")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Smoke Plan (1)", response.data)
+        self.assertIn(b"Plan Tests: Smoke Plan", response.data)
+        self.assertIn(b"Test 1", response.data)
+
 
 if __name__ == "__main__":
     unittest.main()

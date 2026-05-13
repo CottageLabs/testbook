@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block page_title %}Testbook{% if repo_name %} -- {{ repo_name }}{% endif %}{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="app-shell">
+    <header class="app-header">
+        <div class="app-topbar">
+            <div class="app-brand">
+                <p class="eyebrow">Testbook</p>
+                <div class="app-brand-main">
+                    <h1>{% if repo_name %}{{ repo_name }}{% else %}Test Repository{% endif %}</h1>
+                    <div class="base-url-form base-url-form--compact">
+                        <label for="base-url-input" class="base-url-label">Base URL</label>
+                        <input type="url" id="base-url-input" class="base-url-input" placeholder="e.g., http://localhost:5004/">
+                        <button id="base-url-save-btn" class="btn btn-base-url" type="button">Save</button>
+                        <button id="base-url-reset-btn" class="btn btn-base-url-reset" type="button">Reset</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="branch-controls">
+                <form method="get" action="{{ branch_form_action|default('/') }}" class="branch-form">
+                    <label for="branch-select" class="branch-label">Branch</label>
+                    <select id="branch-select" name="branch" onchange="this.form.submit()">
+                        {% for branch in branches %}
+                        <option value="{{ branch }}" {% if branch == selected_branch %}selected{% endif %}>{{ branch }}</option>
+                        {% endfor %}
+                    </select>
+                    {% block branch_form_hidden %}{% endblock %}
+                    <p class="branch-sync-inline">
+                        <span id="last-synced-label" class="branch-sync-meta">Last synced: {{ last_synced_display }}</span>
+                        <span class="branch-sync-sep">|</span>
+                        <span id="freshness-status-label" class="branch-sync-status is-checking">Status: Checking freshness...</span>
+                    </p>
+                    <noscript><button type="submit">Go</button></noscript>
+                </form>
+
+                {% if show_sync_button %}
+                <form method="post" action="/sync" class="sync-form">
+                    <input type="hidden" name="branch" value="{{ selected_branch }}">
+                    <input type="hidden" name="return_view" value="{{ return_view|default('suites') }}">
+                    <button id="sync-button" type="submit" class="btn btn-primary">
+                        {% if need_sync %}Sync Tests{% else %}Refresh{% endif %}
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <nav class="app-subnav" aria-label="Workbench sections">
+            <a class="subnav-link {% if active_nav == 'suites' %}active{% endif %}" href="{{ url_for('index', branch=selected_branch) if selected_branch else url_for('index') }}">Test Suites</a>
+            <a class="subnav-link {% if active_nav == 'plans' %}active{% endif %}" href="{{ url_for('plans_index', branch=selected_branch) if selected_branch else url_for('plans_index') }}">Test Plans</a>
+            <a class="subnav-link" href="#">Executions</a>
+        </nav>
+    </header>
+
+    <div class="app-body">
+        <aside class="app-sidebar">
+            {% if error %}
+            <section class="panel panel--error">
+                <h2>Configuration problem</h2>
+                <p>{{ error }}</p>
+                <p>Edit <code>config.yml</code> (see <code>config.yml.example</code> for the expected shape) and restart the server.</p>
+            </section>
+            {% else %}
+            <section class="panel panel--sidebar">
+                {% block sidebar %}{% endblock %}
+            </section>
+            {% endif %}
+        </aside>
+
+        <main class="app-main">
+            <section class="content-panel">
+                <div id="test-content-root">
+                    {% block content_placeholder %}
+                    <h2>Test content</h2>
+                    <p class="lead">Select a testset or a test from the left navigation to view details.</p>
+                    {% endblock %}
+                </div>
+            </section>
+        </main>
+    </div>
+</div>
+
+<div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+{% block page_data %}{% endblock %}
+<script src="{{ url_for('static', filename='js/workbench.js') }}"></script>
+{% block page_scripts %}{% endblock %}
+</body>
+</html>
+

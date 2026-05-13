@@ -1,0 +1,46 @@
+{% if suite_payload %}
+<ul class="suite-list">
+    {% for suite in suite_payload %}
+    <li class="suite-item" data-suite-id="{{ suite.id }}">
+        <div class="suite-header">
+            <button class="toggle-btn" type="button" aria-expanded="true" aria-label="Toggle suite">
+                <span class="toggle-icon">▼</span>
+            </button>
+            <span class="suite-name">{{ suite.name }}</span>
+            <span class="testset-count">{{ suite.testsets | length }} testset{{ '' if suite.testsets | length == 1 else 's' }}</span>
+        </div>
+
+        {% if suite.testsets %}
+        <ul class="testset-list suite-content" data-suite-id="{{ suite.id }}">
+            {% for testset in suite.testsets %}
+            <li class="testset-item" data-testset-id="{{ testset.id }}">
+                <div class="testset-header">
+                    <button class="toggle-btn" type="button" aria-expanded="true" aria-label="Toggle testset">
+                        <span class="toggle-icon">▼</span>
+                    </button>
+                    <button class="testset-name nav-link nav-target" type="button" data-target="set/{{ testset.id }}" id="nav-set-{{ testset.id }}">{{ testset.name }}</button>
+                    <span class="test-count">{{ testset.tests | length }} test{{ '' if testset.tests | length == 1 else 's' }}</span>
+                </div>
+
+                {% if testset.tests %}
+                <ul class="test-list testset-content" data-testset-id="{{ testset.id }}">
+                    {% for test in testset.tests %}
+                    <li class="test-item">
+                        <button class="test-title nav-link nav-target" type="button" data-target="test/{{ test.id }}" data-parent-set-id="{{ testset.id }}" id="nav-test-{{ test.id }}">{{ test.title }}</button>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </li>
+    {% endfor %}
+</ul>
+{% elif not need_sync %}
+<p class="muted">{{ empty_state_message|default('No tests synced for this branch yet.') }}</p>
+{% else %}
+<p class="muted">Choose a branch and sync to load its tests into the local cache.</p>
+{% endif %}
+
