@@ -24,41 +24,54 @@
             </div>
 
             <div class="branch-controls">
-                <form method="get" action="{{ branch_form_action|default('/') }}" class="branch-form">
-                    <label for="branch-select" class="branch-label">Branch</label>
-                    <select id="branch-select" name="branch" onchange="this.form.submit()">
-                        {% for branch in branches %}
-                        <option value="{{ branch }}" {% if branch == selected_branch %}selected{% endif %}>{{ branch }}</option>
-                        {% endfor %}
-                    </select>
-                    {% if active_plan_id %}
-                    <input type="hidden" name="plan_id" value="{{ active_plan_id }}">
-                    {% endif %}
-                    {% block branch_form_hidden %}{% endblock %}
-                    <p class="branch-sync-inline">
-                        <span id="last-synced-label" class="branch-sync-meta">Last synced: {{ last_synced_display }}</span>
-                        <span class="branch-sync-sep">|</span>
-                        <span id="freshness-status-label" class="branch-sync-status is-checking">Status: Checking freshness...</span>
-                    </p>
-                    {% if active_plan_id %}
-                    <p class="active-plan-indicator">
-                        <span class="active-plan-label">Plan:</span>
-                        <span class="active-plan-name">{{ active_plan_title or 'Plan #' ~ active_plan_id }}</span>
-                        <a class="active-plan-clear" href="{{ url_for('index', branch=selected_branch) if selected_branch else url_for('index') }}" title="Exit plan context">✕</a>
-                    </p>
-                    {% endif %}
-                    <noscript><button type="submit">Go</button></noscript>
-                </form>
+                <div class="context-controls">
+                    <div class="context-stack">
+                        <form method="get" action="{{ branch_form_action|default('/') }}" class="branch-form">
+                            <label for="branch-select" class="branch-label">Branch</label>
+                            <select id="branch-select" name="branch" onchange="this.form.submit()">
+                                {% for branch in branches %}
+                                <option value="{{ branch }}" {% if branch == selected_branch %}selected{% endif %}>{{ branch }}</option>
+                                {% endfor %}
+                            </select>
+                            {% if active_plan_id %}
+                            <input type="hidden" name="plan_id" value="{{ active_plan_id }}">
+                            {% endif %}
+                            {% block branch_form_hidden %}{% endblock %}
+                            <p class="branch-sync-inline">
+                                <span id="last-synced-label" class="branch-sync-meta">Last synced: {{ last_synced_display }}</span>
+                                <span class="branch-sync-sep">|</span>
+                                <span id="freshness-status-label" class="branch-sync-status is-checking">Status: Checking freshness...</span>
+                            </p>
+                            <noscript><button type="submit">Go</button></noscript>
+                        </form>
 
-                {% if show_sync_button %}
-                <form method="post" action="/sync" class="sync-form">
-                    <input type="hidden" name="branch" value="{{ selected_branch }}">
-                    <input type="hidden" name="return_view" value="{{ return_view|default('suites') }}">
-                    <button id="sync-button" type="submit" class="btn btn-primary">
-                        {% if need_sync %}Sync Tests{% else %}Refresh{% endif %}
-                    </button>
-                </form>
-                {% endif %}
+                        {% if available_plans or active_plan_id %}
+                        <form method="get" action="{{ branch_form_action|default('/') }}" class="plan-selector-form">
+                            <label for="plan-header-select" class="plan-label">Plan</label>
+                            <select id="plan-header-select" name="plan_id" onchange="this.form.submit()">
+                                <option value="">— None —</option>
+                                {% for plan in available_plans %}
+                                <option value="{{ plan.id }}" {% if plan.id|string == active_plan_id|string %}selected{% endif %}>{{ plan.title }}</option>
+                                {% endfor %}
+                            </select>
+                            {% if selected_branch %}
+                            <input type="hidden" name="branch" value="{{ selected_branch }}">
+                            {% endif %}
+                            <noscript><button type="submit">Go</button></noscript>
+                        </form>
+                        {% endif %}
+                    </div>
+
+                    {% if show_sync_button %}
+                    <form method="post" action="/sync" class="sync-form">
+                        <input type="hidden" name="branch" value="{{ selected_branch }}">
+                        <input type="hidden" name="return_view" value="{{ return_view|default('suites') }}">
+                        <button id="sync-button" type="submit" class="btn btn-primary">
+                            {% if need_sync %}Sync Tests{% else %}Refresh{% endif %}
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
             </div>
         </div>
 

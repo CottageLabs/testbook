@@ -6,26 +6,6 @@
     </form>
 </div>
 
-{% if plans %}
-<form method="get" action="/plans" class="plan-select-form">
-    <label for="plan-select" class="branch-label">Plan</label>
-    <select id="plan-select" name="plan_id" onchange="this.form.submit()">
-        {% for plan in plans %}
-        <option value="{{ plan.id }}" {% if plan.id|string == selected_plan_id|string %}selected{% endif %}>{{ plan.title }} ({{ plan.test_count }})</option>
-        {% endfor %}
-    </select>
-    <input type="hidden" name="branch" value="{{ selected_branch }}">
-    <noscript><button type="submit">Go</button></noscript>
-</form>
-{% if selected_plan_id %}
-<p class="plan-edit-hint">
-    <a class="plan-edit-link" href="{{ url_for('index', branch=selected_branch, plan_id=selected_plan_id) if selected_branch else url_for('index') }}">✏ Add / remove tests in Test Suites</a>
-</p>
-{% endif %}
-{% else %}
-<p class="muted">No plans yet for this branch. Click <strong>Add Plan</strong> to create one.</p>
-{% endif %}
-
 <div class="panel-title-row">
     <h2>Plan Tests{% if selected_plan_title %}: {{ selected_plan_title }}{% endif %}</h2>
     {% if suite_payload %}
@@ -37,10 +17,12 @@
     {% endif %}
 </div>
 
-{% if plans and not selected_plan_id %}
-<p class="muted">Select a plan to view its tests.</p>
+{% if not selected_plan_id %}
+<p class="muted">Select a plan from the header to view its tests.</p>
 {% else %}
 {% set empty_state_message = 'This plan does not contain any tests yet.' %}
 {% include("_suite_tree.html") %}
 {% endif %}
+
+
 

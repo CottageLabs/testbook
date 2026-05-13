@@ -88,26 +88,48 @@ p {
 
 .branch-controls {
     display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
+    align-items: flex-start;
     justify-content: flex-end;
 }
 
-.branch-form {
+.context-controls {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 10px;
 }
 
-.branch-label {
+.context-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+}
+
+.branch-form {
+    display: grid;
+    grid-template-columns: 54px minmax(180px, auto);
+    align-items: center;
+    gap: 8px;
+    row-gap: 4px;
+}
+
+.plan-selector-form {
+    display: grid;
+    grid-template-columns: 54px minmax(180px, auto);
+    align-items: center;
+    gap: 8px;
+    row-gap: 4px;
+}
+
+.branch-label,
+.plan-label {
     font-weight: 600;
     color: var(--text);
     white-space: nowrap;
 }
 
-#branch-select {
+#branch-select,
+#plan-header-select {
     padding: 8px 10px;
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -129,6 +151,12 @@ p {
     align-items: center;
     gap: 6px;
     white-space: nowrap;
+    grid-column: 2;
+}
+
+.branch-form noscript,
+.plan-selector-form noscript {
+    grid-column: 2;
 }
 
 .branch-sync-sep {
@@ -225,6 +253,8 @@ p {
     margin: 0;
     display: flex;
     align-items: center;
+    flex-shrink: 0;
+    align-self: flex-start;
 }
 
 .btn {
@@ -396,23 +426,6 @@ p {
     transition: all 0.2s ease;
 }
 
-.plan-select-form {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 6px;
-}
-
-#plan-select {
-    padding: 8px 10px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    font-size: 0.95rem;
-    background: var(--surface-alt);
-    color: var(--text);
-    cursor: pointer;
-    min-width: 180px;
-}
 
 .add-plan-form {
     margin-left: auto;
@@ -441,6 +454,9 @@ p {
     border-radius: 999px;
     padding: 2px 10px 2px 8px;
     white-space: nowrap;
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: start;
 }
 
 .active-plan-label {
@@ -451,6 +467,10 @@ p {
 .active-plan-name {
     color: var(--text);
     font-weight: 600;
+}
+
+.active-plan-indicator {
+    max-width: 260px;
 }
 
 .active-plan-clear {
@@ -465,20 +485,6 @@ p {
     color: #b91c1c;
 }
 
-/* Plan edit hint on plans page */
-.plan-edit-hint {
-    margin: 0 0 12px;
-    font-size: 0.85rem;
-}
-
-.plan-edit-link {
-    color: var(--accent);
-    text-decoration: none;
-}
-
-.plan-edit-link:hover {
-    text-decoration: underline;
-}
 
 /* Plan add/remove buttons in nav slots */
 .plan-btn-slot {
@@ -510,48 +516,6 @@ p {
     border-color: #86efac;
 }
 
-.btn-plan-remove {
-    background: #fef2f2;
-    color: #b91c1c;
-    border: 1px solid #fecaca;
-}
-
-.btn-plan-remove:hover {
-    background: #fecaca;
-    border-color: #fca5a5;
-}
-
-/* Plan buttons in test card header */
-.test-card-actions {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-
-.plan-btns-inline {
-    display: inline-flex;
-    gap: 4px;
-}
-
-.btn-expand-all:hover,
-.btn-collapse-all:hover {
-    background: var(--accent-soft);
-    border-color: var(--accent);
-    color: var(--accent);
-}
-
-.content-panel {
-    padding: 28px;
-}
-
-.content-panel h2 {
-    font-size: 1.6rem;
-    margin-bottom: 10px;
-}
-
-.lead,
-.muted,
 li,
 p {
     color: var(--muted);
@@ -838,6 +802,26 @@ ul {
     .branch-controls {
         width: 100%;
         justify-content: flex-start;
+        align-items: flex-start;
+    }
+
+    .context-controls,
+    .context-stack,
+    .branch-form,
+    .plan-selector-form {
+        width: 100%;
+        justify-content: flex-start;
+        align-items: flex-start;
+    }
+
+    .context-controls {
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .branch-form,
+    .plan-selector-form {
+        grid-template-columns: auto minmax(0, 1fr);
     }
 
     .branch-sync-inline {

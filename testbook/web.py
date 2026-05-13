@@ -285,6 +285,7 @@ def _default_render_context() -> dict[str, object]:
         "active_nav": "suites",
         "branch_form_action": "/",
         "return_view": "suites",
+        "available_plans": [],
         "plans": [],
         "selected_plan_id": None,
         "selected_plan_title": "",
@@ -358,6 +359,15 @@ def create_app() -> Flask:
                     active_plan_id_raw = ""
 
             last_synced_at = _to_utc(getattr(sync_state, "last_synced_at", None))
+
+            # Load available plans for this branch
+            available_plans = (
+                session.query(TestPlan)
+                .filter_by(repo_name=cfg["repo_name"], branch=selected_branch)
+                .order_by(TestPlan.updated_at.desc(), TestPlan.id.asc())
+                .all()
+            )
+
             session.close()
 
             branches = _make_source_repo(selected_branch).list_branches()
@@ -375,6 +385,7 @@ def create_app() -> Flask:
                     selected_branch=selected_branch,
                     suites=cached_suites,
                     suite_payload=suite_payload,
+                    available_plans=available_plans,
                     error=None,
                     show_sync_button=True,
                     default_base_url=cfg.get("default_base_url", "http://localhost:5004/"),
@@ -397,6 +408,7 @@ def create_app() -> Flask:
                     selected_branch=selected_branch,
                     suites=[],
                     suite_payload=[],
+                    available_plans=available_plans,
                     error=None,
                     show_sync_button=True,
                     need_sync=True,
@@ -504,6 +516,7 @@ def create_app() -> Flask:
                 branches=branches,
                 selected_branch=selected_branch,
                 suite_payload=filtered_payload,
+                available_plans=plans,
                 plans=_serialize_plans(plans),
                 selected_plan_id=_id_value(getattr(selected_plan, "id", ""), "") if selected_plan else "",
                 selected_plan_title=_text_value(getattr(selected_plan, "title", ""), ""),

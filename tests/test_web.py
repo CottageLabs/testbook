@@ -125,15 +125,46 @@ class TestIndexRoute(unittest.TestCase):
     def test_index_shows_sync_button_when_no_cached_data(self):
         # Mock the query to return no suites (need sync)
         session_instance = MagicMock()
-        # Handle the .options().filter_by().all() chain
+        # Simple approach: return empty/None for all queries
         query_mock = MagicMock()
         query_mock.options.return_value.filter_by.return_value.all.return_value = []
+        query_mock.filter_by.return_value.first.return_value = None
+        query_mock.filter_by.return_value.order_by.return_value.all.return_value = []
         session_instance.query.return_value = query_mock
         self.session_mock_obj.return_value = session_instance
 
         response = self.client.get("/")
-        # Sync button should be visible
+        # Page should load successfully
+        self.assertEqual(response.status_code, 200)
         self.assertIn(b"Sync Tests", response.data)
+        # Should show message for needing sync
+        self.assertIn(b"Choose a branch and sync to load its tests", response.data)
+
+    def test_index_renders_plan_selector_below_branch_when_plans_exist(self):
+        session_instance = MagicMock()
+
+        suites_query = MagicMock()
+        suites_query.options.return_value.filter_by.return_value.all.return_value = []
+
+        sync_query = MagicMock()
+        sync_query.filter_by.return_value.first.return_value = None
+
+        plan = SimpleNamespace(id=7, title="Smoke Plan")
+        plans_query = MagicMock()
+        plans_query.filter_by.return_value.order_by.return_value.all.return_value = [plan]
+
+        session_instance.query.side_effect = [suites_query, sync_query, plans_query]
+        self.session_mock_obj.return_value = session_instance
+
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'id="branch-select"', response.data)
+        self.assertIn(b'id="plan-header-select"', response.data)
+        self.assertIn(b"Smoke Plan", response.data)
+        self.assertLess(
+            response.data.index(b'id="branch-select"'),
+            response.data.index(b'id="plan-header-select"'),
+        )
 
 
     def test_index_displays_cached_suites_when_available(self):
@@ -487,7 +518,7 @@ class TestPlansRoute(unittest.TestCase):
 
         response = self.client.get("/plans")
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"Smoke Plan (1)", response.data)
+        self.assertIn(b"Smoke Plan", response.data)
         self.assertIn(b"Plan Tests: Smoke Plan", response.data)
         self.assertIn(b"Test 1", response.data)
 
