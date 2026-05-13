@@ -7,6 +7,7 @@ internet connection is required.
 from __future__ import annotations
 
 import base64
+from datetime import datetime, timezone
 import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
@@ -201,6 +202,34 @@ class TestSourceRepoGithubFileUrl(unittest.TestCase):
         src = SourceRepo(token="tok", repo_name="myorg/myproject", branch="develop")
         url = src.github_file_url("testbook/auth/login.yml")
         self.assertEqual(url, "https://github.com/myorg/myproject/blob/develop/testbook/auth/login.yml")
+
+
+class TestSourceRepoLatestTestsCommitTimestamp(unittest.TestCase):
+
+    def setUp(self):
+        self.repo = MagicMock()
+        self.patcher = _patch_github(self.repo)
+
+    def tearDown(self):
+        self.patcher.stop()
+
+    def test_returns_first_commit_date(self):
+        commit_date = datetime(2026, 5, 1, 10, 30, tzinfo=timezone.utc)
+        commit = MagicMock()
+        commit.commit.committer.date = commit_date
+        self.repo.get_commits.return_value = [commit]
+
+        src = SourceRepo(token="tok", repo_name="org/repo", tests_path="testbook", branch="main")
+        result = src.latest_tests_commit_timestamp()
+
+        self.assertEqual(result, commit_date)
+        self.repo.get_commits.assert_called_once_with(sha="main", path="testbook")
+
+    def test_returns_none_when_no_commits(self):
+        self.repo.get_commits.return_value = []
+
+        src = SourceRepo(token="tok", repo_name="org/repo", tests_path="testbook", branch="main")
+        self.assertIsNone(src.latest_tests_commit_timestamp())
 
 
 # ---------------------------------------------------------------------------

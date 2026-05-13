@@ -14,6 +14,8 @@ source_repo:
   # This is used to create clickable links from test steps that have a "path" element.
   # Users can override this at runtime via the UI (persisted in browser localStorage).
   default_base_url: "http://localhost:5004/"
+  # How often (in seconds) the UI should check whether tests changed on GitHub.
+  freshness_check_interval_seconds: 1800
   # Leave blank and set TESTBOOK_SOURCE_TOKEN env var instead for production:
   github_token: ""
 

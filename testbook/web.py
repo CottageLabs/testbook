@@ -1,11 +1,12 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
+from datetime import datetime, timezone
 from sqlalchemy.orm import joinedload
 from urllib.parse import quote
 
 from testbook.config import ConfigurationError, get_source_repo_config
 from testbook.database import get_session, init_db, sync_from_source_repo
 from testbook.github_connector import SourceRepo
-from testbook.models import Result, SetupItem, Step, Suite, Test, TestDependency, TestSet
+from testbook.models import BranchSyncState, Result, SetupItem, Step, Suite, Test, TestDependency, TestSet
 
 
 def _make_source_repo(branch: str | None = None) -> SourceRepo:
@@ -39,6 +40,33 @@ def _id_value(value: object, default: str) -> str:
     if isinstance(value, (int, str)):
         return str(value)
     return default
+
+
+def _int_value(value: object, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _to_utc(dt: datetime | None) -> datetime | None:
+    if dt is None or not isinstance(dt, datetime):
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def _iso_timestamp(dt: datetime | None) -> str | None:
+    normalized = _to_utc(dt)
+    return normalized.isoformat() if normalized else None
+
+
+def _display_timestamp(dt: datetime | None) -> str:
+    normalized = _to_utc(dt)
+    if normalized is None:
+        return "Never"
+    return normalized.strftime("%Y-%m-%d %H:%M UTC")
 
 
 def _github_file_url(repo_name: str, branch: str, repo_relative_path: str, mode: str) -> str:
@@ -189,6 +217,7 @@ def create_app() -> Flask:
             cfg = get_source_repo_config()
             default_branch = cfg["default_branch"]
             selected_branch = request.args.get("branch", default_branch)
+            interval_seconds = max(60, _int_value(cfg.get("freshness_check_interval_seconds", 1800), 1800))
 
             session = get_session()
             # Eagerly load nested relationships so they're available after session closes
@@ -212,6 +241,12 @@ def create_app() -> Flask:
                 )
                 .all()
             )
+            sync_state = (
+                session.query(BranchSyncState)
+                .filter_by(repo_name=cfg["repo_name"], branch=selected_branch)
+                .first()
+            )
+            last_synced_at = _to_utc(getattr(sync_state, "last_synced_at", None))
             session.close()
 
             branches = _make_source_repo(selected_branch).list_branches()
@@ -232,6 +267,9 @@ def create_app() -> Flask:
                     error=None,
                     show_sync_button=True,
                     default_base_url=cfg.get("default_base_url", "http://localhost:5004/"),
+                    freshness_check_interval_seconds=interval_seconds,
+                    last_synced_at_iso=_iso_timestamp(last_synced_at),
+                    last_synced_display=_display_timestamp(last_synced_at),
                 )
             else:
                 # No cached data; show sync button
@@ -246,6 +284,9 @@ def create_app() -> Flask:
                     show_sync_button=True,
                     need_sync=True,
                     default_base_url=cfg.get("default_base_url", "http://localhost:5004/"),
+                    freshness_check_interval_seconds=interval_seconds,
+                    last_synced_at_iso=_iso_timestamp(last_synced_at),
+                    last_synced_display=_display_timestamp(last_synced_at),
                 )
 
         except ConfigurationError as exc:
@@ -260,6 +301,9 @@ def create_app() -> Flask:
                 show_sync_button=False,
                 need_sync=False,
                 default_base_url="http://localhost:5004/",
+                freshness_check_interval_seconds=1800,
+                last_synced_at_iso=None,
+                last_synced_display="Never",
             )
         except Exception as exc:
             return render_template(
@@ -273,6 +317,9 @@ def create_app() -> Flask:
                 show_sync_button=False,
                 need_sync=False,
                 default_base_url="http://localhost:5004/",
+                freshness_check_interval_seconds=1800,
+                last_synced_at_iso=None,
+                last_synced_display="Never",
             )
 
     @app.get("/api/default-base-url")
@@ -283,6 +330,43 @@ def create_app() -> Flask:
             return jsonify({"default_base_url": cfg.get("default_base_url", "http://localhost:5004/")})
         except Exception:
             return jsonify({"default_base_url": "http://localhost:5004/"})
+
+    @app.get("/api/branch-freshness")
+    def get_branch_freshness() -> tuple[dict, int] | dict:
+        """Return branch freshness info by comparing last sync with latest remote test change."""
+        try:
+            cfg = get_source_repo_config()
+            branch = request.args.get("branch", cfg["default_branch"])
+
+            session = get_session()
+            sync_state = (
+                session.query(BranchSyncState)
+                .filter_by(repo_name=cfg["repo_name"], branch=branch)
+                .first()
+            )
+            session.close()
+
+            last_synced_at = _to_utc(getattr(sync_state, "last_synced_at", None))
+            remote_updated_at = _to_utc(_make_source_repo(branch).latest_tests_commit_timestamp())
+
+            if last_synced_at is None:
+                is_stale = remote_updated_at is not None
+            elif remote_updated_at is None:
+                is_stale = False
+            else:
+                is_stale = remote_updated_at > last_synced_at
+
+            return jsonify(
+                {
+                    "branch": branch,
+                    "is_stale": is_stale,
+                    "last_synced_at": _iso_timestamp(last_synced_at),
+                    "last_synced_display": _display_timestamp(last_synced_at),
+                    "remote_updated_at": _iso_timestamp(remote_updated_at),
+                }
+            )
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 500
 
     @app.post("/sync")
     def sync() -> str:
@@ -318,6 +402,10 @@ def create_app() -> Flask:
                 suite_payload=[],
                 show_sync_button=False,
                 need_sync=False,
+                default_base_url="http://localhost:5004/",
+                freshness_check_interval_seconds=1800,
+                last_synced_at_iso=None,
+                last_synced_display="Never",
             )
 
     return app

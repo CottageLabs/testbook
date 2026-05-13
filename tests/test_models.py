@@ -12,7 +12,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from testbook.database import reset_db, sync_from_source_repo
-from testbook.models import Base, Result, SetupItem, Step, Suite, Test, TestDependency, TestSet
+from testbook.models import Base, BranchSyncState, Result, SetupItem, Step, Suite, Test, TestDependency, TestSet
 
 
 class TestModelsSchema(unittest.TestCase):
@@ -248,6 +248,10 @@ class TestSyncFromSourceRepo(unittest.TestCase):
         synced_test = session.query(Test).first()
         self.assertIsNotNone(synced_test)
         self.assertEqual(synced_test.file_path, "testbook/auth.yml")
+
+        sync_state = session.query(BranchSyncState).filter_by(repo_name="org/repo", branch="main").first()
+        self.assertIsNotNone(sync_state)
+        self.assertIsNotNone(sync_state.last_synced_at)
 
         # ...existing code...
 

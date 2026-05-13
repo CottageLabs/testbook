@@ -100,6 +100,7 @@ class TestGetSourceRepoConfig(unittest.TestCase):
         self.assertEqual(cfg["tests_path"], "testbook")
         self.assertEqual(cfg["resources_path"], "")
         self.assertEqual(cfg["default_branch"], "main")
+        self.assertEqual(cfg["freshness_check_interval_seconds"], 1800)
 
     def test_returns_configured_optional_fields(self):
         content = textwrap.dedent("""\
@@ -109,12 +110,14 @@ class TestGetSourceRepoConfig(unittest.TestCase):
               tests_path: "functional_tests"
               resources_path: "doajtest"
               default_branch: "develop"
+              freshness_check_interval_seconds: 900
         """)
         with _isolated_config(content):
             cfg = get_source_repo_config()
         self.assertEqual(cfg["tests_path"], "functional_tests")
         self.assertEqual(cfg["resources_path"], "doajtest")
         self.assertEqual(cfg["default_branch"], "develop")
+        self.assertEqual(cfg["freshness_check_interval_seconds"], 900)
 
 
 # ---------------------------------------------------------------------------

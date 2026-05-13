@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import JSON, Column, ForeignKey, Integer, String, Text, create_engine
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, Text, create_engine
 from sqlalchemy.orm import declarative_base, relationship
 
 if TYPE_CHECKING:
@@ -59,6 +59,21 @@ class Suite(Base):
 
     def __repr__(self) -> str:
         return f"<Suite {self.name!r} from {self.repo_name}:{self.branch}/{self.file_path}>"
+
+
+class BranchSyncState(Base):
+    """Tracks the most recent successful sync time for a repo/branch pair."""
+
+    __tablename__ = "branch_sync_state"
+    __allow_unmapped__ = True
+
+    id = Column(Integer, primary_key=True)
+    repo_name = Column(String(255), nullable=False, index=True)
+    branch = Column(String(255), nullable=False, index=True)
+    last_synced_at = Column(DateTime(timezone=True), nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<BranchSyncState {self.repo_name}:{self.branch} @ {self.last_synced_at}>"
 
 
 class TestSet(Base):

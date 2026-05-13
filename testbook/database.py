@@ -9,6 +9,7 @@ Provides:
 from __future__ import annotations
 
 import os
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import create_engine, inspect, select, text
@@ -22,6 +23,7 @@ from testbook.models import (
     Step,
     Suite,
     Test,
+    BranchSyncState,
     TestDependency,
     TestSet,
 )
@@ -234,6 +236,21 @@ def sync_from_source_repo(
             
             count += 1
         
+        sync_state = (
+            session.query(BranchSyncState)
+            .filter_by(repo_name=source_repo.repo_name, branch=source_repo.branch)
+            .first()
+        )
+        if sync_state is None:
+            sync_state = BranchSyncState(
+                repo_name=source_repo.repo_name,
+                branch=source_repo.branch,
+                last_synced_at=datetime.now(timezone.utc),
+            )
+            session.add(sync_state)
+        else:
+            sync_state.last_synced_at = datetime.now(timezone.utc)
+
         session.commit()
         return count
     finally:

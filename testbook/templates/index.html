@@ -17,19 +17,23 @@
 
             <div class="branch-controls">
                 <form method="get" action="/" class="branch-form">
-                    <label for="branch-select" class="branch-label">Branch</label>
-                    <select id="branch-select" name="branch" onchange="this.form.submit()">
-                        {% for branch in branches %}
-                        <option value="{{ branch }}" {% if branch == selected_branch %}selected{% endif %}>{{ branch }}</option>
-                        {% endfor %}
-                    </select>
+                    <div class="branch-form-stack">
+                        <label for="branch-select" class="branch-label">Branch</label>
+                        <select id="branch-select" name="branch" onchange="this.form.submit()">
+                            {% for branch in branches %}
+                            <option value="{{ branch }}" {% if branch == selected_branch %}selected{% endif %}>{{ branch }}</option>
+                            {% endfor %}
+                        </select>
+                        <p id="last-synced-label" class="branch-sync-meta">Last synced: {{ last_synced_display }}</p>
+                        <p id="freshness-status-label" class="branch-sync-status is-checking">Status: Checking freshness...</p>
+                    </div>
                     <noscript><button type="submit">Go</button></noscript>
                 </form>
 
                 {% if show_sync_button %}
                 <form method="post" action="/sync" class="sync-form">
                     <input type="hidden" name="branch" value="{{ selected_branch }}">
-                    <button type="submit" class="btn btn-primary">
+                    <button id="sync-button" type="submit" class="btn btn-primary">
                         {% if need_sync %}Sync Tests{% else %}Refresh{% endif %}
                     </button>
                 </form>
@@ -79,16 +83,134 @@
     </div>
 </div>
 
+<div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
 <script id="suite-data" type="application/json">{{ suite_payload|tojson }}</script>
 <script id="default-base-url" type="application/json">{{ default_base_url|tojson }}</script>
+<script id="selected-branch" type="application/json">{{ selected_branch|tojson }}</script>
+<script id="freshness-check-interval" type="application/json">{{ freshness_check_interval_seconds|tojson }}</script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const suiteDataNode = document.getElementById('suite-data');
         const suiteData = suiteDataNode ? JSON.parse(suiteDataNode.textContent || '[]') : [];
         const defaultBaseUrlNode = document.getElementById('default-base-url');
         const defaultBaseUrl = defaultBaseUrlNode ? JSON.parse(defaultBaseUrlNode.textContent || '"http://localhost:5004/"') : "http://localhost:5004/";
+        const selectedBranchNode = document.getElementById('selected-branch');
+        const selectedBranch = selectedBranchNode ? JSON.parse(selectedBranchNode.textContent || '""') : '';
+        const freshnessCheckIntervalNode = document.getElementById('freshness-check-interval');
+        const freshnessCheckIntervalSeconds = freshnessCheckIntervalNode ? Number(JSON.parse(freshnessCheckIntervalNode.textContent || '1800')) : 1800;
         const contentRoot = document.getElementById('test-content-root');
         const appMain = document.querySelector('.app-main');
+        const syncButton = document.getElementById('sync-button');
+        const lastSyncedLabel = document.getElementById('last-synced-label');
+        const freshnessStatusLabel = document.getElementById('freshness-status-label');
+        const toastContainer = document.getElementById('toast-container');
+        let previousIsStale = null;
+
+        function formatRelativeTime(timestamp) {
+            if (!timestamp) {
+                return '';
+            }
+            const date = new Date(timestamp);
+            if (Number.isNaN(date.getTime())) {
+                return '';
+            }
+            const diffMs = Date.now() - date.getTime();
+            const diffMins = Math.max(0, Math.floor(diffMs / 60000));
+            if (diffMins < 1) {
+                return 'just now';
+            }
+            if (diffMins < 60) {
+                return `${diffMins} minute${diffMins === 1 ? '' : 's'} ago`;
+            }
+            const diffHours = Math.floor(diffMins / 60);
+            if (diffHours < 24) {
+                return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+            }
+            const diffDays = Math.floor(diffHours / 24);
+            return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+        }
+
+        function showToast(message) {
+            if (!toastContainer) {
+                return;
+            }
+            const toast = document.createElement('div');
+            toast.className = 'toast toast-warning';
+            toast.textContent = message;
+            toastContainer.appendChild(toast);
+            window.setTimeout(() => {
+                toast.classList.add('is-hiding');
+                window.setTimeout(() => {
+                    if (toast.parentNode) {
+                        toast.parentNode.removeChild(toast);
+                    }
+                }, 200);
+            }, 4500);
+        }
+
+        function updateFreshnessUi(data) {
+            if (lastSyncedLabel) {
+                const display = data && data.last_synced_display ? data.last_synced_display : 'Never';
+                lastSyncedLabel.textContent = `Last synced: ${display}`;
+            }
+
+            const hasStaleFlag = !!(data && typeof data.is_stale === 'boolean');
+            if (freshnessStatusLabel) {
+                freshnessStatusLabel.classList.remove('is-checking', 'is-up-to-date', 'is-stale');
+                if (!hasStaleFlag) {
+                    freshnessStatusLabel.classList.add('is-checking');
+                    freshnessStatusLabel.textContent = 'Status: Unable to check freshness';
+                } else if (data.is_stale) {
+                    const relative = formatRelativeTime(data.remote_updated_at);
+                    freshnessStatusLabel.classList.add('is-stale');
+                    freshnessStatusLabel.textContent = relative
+                        ? `Status: Out of date (GitHub changed ${relative})`
+                        : 'Status: Out of date';
+                } else {
+                    freshnessStatusLabel.classList.add('is-up-to-date');
+                    freshnessStatusLabel.textContent = 'Status: Up to date';
+                }
+            }
+
+            if (syncButton) {
+                if (data && data.is_stale) {
+                    syncButton.classList.add('is-stale');
+                    syncButton.title = 'Tests changed in GitHub since last sync';
+                } else {
+                    syncButton.classList.remove('is-stale');
+                    syncButton.removeAttribute('title');
+                }
+            }
+
+            if (hasStaleFlag) {
+                if (previousIsStale === false && data.is_stale) {
+                    showToast('Tests changed in GitHub. Refresh to sync the latest updates.');
+                }
+                previousIsStale = data.is_stale;
+            }
+        }
+
+        function checkBranchFreshness() {
+            if (!selectedBranch) {
+                return;
+            }
+            fetch(`/api/branch-freshness?branch=${encodeURIComponent(selectedBranch)}`)
+                .then(response => response.ok ? response.json() : null)
+                .then(data => {
+                    if (data) {
+                        updateFreshnessUi(data);
+                    }
+                })
+                .catch(() => {
+                    // Non-blocking: stale checks should not break page interactions.
+                });
+        }
+
+        checkBranchFreshness();
+        if (Number.isFinite(freshnessCheckIntervalSeconds) && freshnessCheckIntervalSeconds > 0) {
+            window.setInterval(checkBranchFreshness, freshnessCheckIntervalSeconds * 1000);
+        }
 
         // Base URL management
         const baseUrlInput = document.getElementById('base-url-input');

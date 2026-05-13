@@ -7,6 +7,7 @@ network access, or database are required.
 from __future__ import annotations
 
 import unittest
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -158,6 +159,19 @@ class TestIndexRoute(unittest.TestCase):
         self.assertIn(b"develop", response.data)
         self.assertIn(b"main", response.data)
 
+    def test_index_renders_last_synced_label(self):
+        session_instance = MagicMock()
+        query_mock = MagicMock()
+        query_mock.options.return_value.filter_by.return_value.all.return_value = []
+        query_mock.filter_by.return_value.first.return_value = None
+        session_instance.query.return_value = query_mock
+        self.session_mock_obj.return_value = session_instance
+
+        response = self.client.get("/")
+        self.assertIn(b"Last synced:", response.data)
+        self.assertIn(b"freshness-status-label", response.data)
+        self.assertIn(b"toast-container", response.data)
+
     def test_branch_query_param_preserves_selection(self):
         session_instance = MagicMock()
         query_mock = MagicMock()
@@ -254,6 +268,40 @@ class TestIndexRoute(unittest.TestCase):
             b"https://github.com/org/repo/blob/main/doajtest/fixtures/manuals/login.md",
             response.data,
         )
+
+    def test_branch_freshness_endpoint_marks_stale_when_remote_newer(self):
+        session_instance = MagicMock()
+        query_mock = MagicMock()
+        query_mock.filter_by.return_value.first.return_value = SimpleNamespace(
+            last_synced_at=datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+        )
+        session_instance.query.return_value = query_mock
+        self.session_mock_obj.return_value = session_instance
+        self.repo_mock.latest_tests_commit_timestamp.return_value = datetime(
+            2026, 1, 2, 12, 0, tzinfo=timezone.utc
+        )
+
+        response = self.client.get("/api/branch-freshness?branch=main")
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertTrue(data["is_stale"])
+
+    def test_branch_freshness_endpoint_not_stale_when_up_to_date(self):
+        session_instance = MagicMock()
+        query_mock = MagicMock()
+        query_mock.filter_by.return_value.first.return_value = SimpleNamespace(
+            last_synced_at=datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
+        )
+        session_instance.query.return_value = query_mock
+        self.session_mock_obj.return_value = session_instance
+        self.repo_mock.latest_tests_commit_timestamp.return_value = datetime(
+            2026, 1, 1, 12, 0, tzinfo=timezone.utc
+        )
+
+        response = self.client.get("/api/branch-freshness?branch=main")
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertFalse(data["is_stale"])
 
 
 class TestSyncRoute(unittest.TestCase):

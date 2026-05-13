@@ -111,6 +111,7 @@ def get_source_repo_config() -> dict[str, Any]:
         "resources_path": section.get("resources_path", ""),
         "default_branch": section.get("default_branch", "main"),
         "default_base_url": section.get("default_base_url", "http://localhost:5004/"),
+        "freshness_check_interval_seconds": section.get("freshness_check_interval_seconds", 1800),
         "github_token": token,
     }
 

@@ -15,6 +15,7 @@ exclusively through the GitHub REST API (no local git clone required).
 from __future__ import annotations
 
 import base64
+from datetime import datetime
 from typing import Any, Generator
 
 import yaml
@@ -141,6 +142,21 @@ class SourceRepo(_GitHubConnector):
         Example: ``https://github.com/myorg/myproject/blob/main/testbook/login.yml``
         """
         return f"https://github.com/{self._repo.full_name}/blob/{self.branch}/{path}"
+
+    def latest_tests_commit_timestamp(self) -> datetime | None:
+        """Return the latest commit timestamp that touched files under tests_path.
+
+        Returns None when no commits are found for the path.
+        """
+        commits = self._repo.get_commits(sha=self.branch, path=self.tests_path)
+        for commit in commits:
+            commit_obj = getattr(commit, "commit", None)
+            committer = getattr(commit_obj, "committer", None)
+            author = getattr(commit_obj, "author", None)
+            commit_dt = getattr(committer, "date", None) or getattr(author, "date", None)
+            if isinstance(commit_dt, datetime):
+                return commit_dt
+        return None
 
 
 # ---------------------------------------------------------------------------
