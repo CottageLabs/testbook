@@ -38,6 +38,5 @@ include-package-data = true
 testbook = [
     "templates/*.html",
     "static/*.css",
-    "resources/templates/*.html",
-    "resources/assets/js/*.js",
+    "static/js/*.js",
 ]
