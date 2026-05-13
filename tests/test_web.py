@@ -26,6 +26,7 @@ def _mock_suite(name="Auth", testsets_count=2):
     suite = MagicMock()
     suite.id = 1
     suite.name = name
+    suite.stable_id = name.lower().replace(" ", "-")
     suite.repo_name = "org/repo"
     suite.branch = "main"
     suite.file_path = ""
@@ -36,10 +37,12 @@ def _mock_suite(name="Auth", testsets_count=2):
         testset = MagicMock()
         testset.id = i + 1
         testset.name = f"TestSet {i+1}"
+        testset.stable_id = f"testset-{i+1}"
         tests = []
         for j in range(2):
             test = MagicMock()
             test.id = (i * 10) + j + 1
+            test.stable_id = f"{name.lower()}-{i+1}-{j+1}"
             test.title = f"Test {j+1}"
             test.file_path = f"testbook/{name.lower()}_{i+1}.yml"
             test.context = {}
@@ -209,6 +212,21 @@ class TestIndexRoute(unittest.TestCase):
             b"https://github.com/org/repo/edit/main/testbook/authentication_1.yml",
             response.data,
         )
+
+    def test_index_serializes_stable_id_for_tests(self):
+        suite = _mock_suite("Authentication", 1)
+        session_instance = MagicMock()
+        query_mock = MagicMock()
+        query_mock.options.return_value.filter_by.return_value.all.return_value = [suite]
+        query_mock.filter_by.return_value.first.return_value = None
+        session_instance.query.return_value = query_mock
+        self.session_mock_obj.return_value = session_instance
+
+        response = self.client.get("/")
+        self.assertIn(b'"stable_id": "authentication-1-1"', response.data)
+        # Suite and testset stable_ids also present
+        self.assertIn(b'"stable_id": "authentication"', response.data)
+        self.assertIn(b'"stable_id": "testset-1"', response.data)
 
     def test_index_serializes_github_blob_url_for_step_resources(self):
         suite = _mock_suite("Authentication", 1)

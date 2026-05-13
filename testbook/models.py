@@ -36,6 +36,8 @@ class Suite(Base):
     ----------
     id : int
         Primary key.
+    stable_id : str
+        The suite stable ID (e.g., "Authentication", "Checkout Flow").
     name : str
         The suite name (e.g., "Authentication", "Checkout Flow").
     repo_name : str
@@ -50,6 +52,7 @@ class Suite(Base):
     __allow_unmapped__ = True
 
     id = Column(Integer, primary_key=True)
+    stable_id = Column(String(255), nullable=False, default="", index=True)
     name = Column(String(255), nullable=False)
     repo_name = Column(String(255), nullable=False)
     branch = Column(String(255), nullable=False)
@@ -83,6 +86,8 @@ class TestSet(Base):
     ----------
     id : int
         Primary key.
+    stable_id : str
+        The testset stable ID (e.g., "Login", "Account Recovery").
     name : str
         The testset name (e.g., "Login", "Account Recovery").
     suite_id : int
@@ -95,6 +100,7 @@ class TestSet(Base):
     __allow_unmapped__ = True
 
     id = Column(Integer, primary_key=True)
+    stable_id = Column(String(255), nullable=False, default="", index=True)
     name = Column(String(255), nullable=False)
     suite_id = Column(Integer, ForeignKey("suite.id"), nullable=False)
     order_index = Column(Integer, default=0)
@@ -127,6 +133,7 @@ class Test(Base):
     __allow_unmapped__ = True
 
     id = Column(Integer, primary_key=True)
+    stable_id = Column(String(255), nullable=False, default="", index=True)
     title = Column(String(255), nullable=False)
     testset_id = Column(Integer, ForeignKey("testset.id"), nullable=False)
     file_path = Column(String(512), nullable=False, default="")
@@ -276,4 +283,3 @@ class TestDependency(Base):
         if self.dep_test_title:
             dep_str += f"/{self.dep_test_title}"
         return f"<TestDependency {self.dependent_test.title!r} → {dep_str}>"
-

@@ -91,6 +91,7 @@ def _build_suite_payload(
     payload: list[dict[str, object]] = []
     for suite_idx, suite in enumerate(cached_suites):
         suite_id = _id_value(getattr(suite, "id", ""), f"suite-{suite_idx + 1}")
+        suite_stable_id = _text_value(getattr(suite, "stable_id", ""), "")
         suite_name = _text_value(getattr(suite, "name", ""), f"Suite {suite_idx + 1}")
         raw_testsets = _list_value(getattr(suite, "testsets", []))
         sorted_testsets = sorted(
@@ -101,6 +102,7 @@ def _build_suite_payload(
         serialized_testsets: list[dict[str, object]] = []
         for testset_idx, testset in enumerate(sorted_testsets):
             testset_id = _id_value(getattr(testset, "id", ""), f"{suite_id}-set-{testset_idx + 1}")
+            testset_stable_id = _text_value(getattr(testset, "stable_id", ""), "")
             testset_name = _text_value(getattr(testset, "name", ""), f"TestSet {testset_idx + 1}")
             raw_tests = _list_value(getattr(testset, "tests", []))
             sorted_tests = sorted(
@@ -111,6 +113,7 @@ def _build_suite_payload(
             serialized_tests: list[dict[str, object]] = []
             for test_idx, test in enumerate(sorted_tests):
                 test_id = _id_value(getattr(test, "id", ""), f"{testset_id}-test-{test_idx + 1}")
+                test_stable_id = _text_value(getattr(test, "stable_id", ""), "")
                 test_title = _text_value(getattr(test, "title", ""), f"Test {test_idx + 1}")
                 file_path = _text_value(getattr(test, "file_path", ""), "")
                 github_edit_url = _github_file_url(
@@ -175,6 +178,7 @@ def _build_suite_payload(
                 serialized_tests.append(
                     {
                         "id": test_id,
+                        "stable_id": test_stable_id,
                         "title": test_title,
                         "file_path": file_path,
                         "github_edit_url": github_edit_url,
@@ -187,6 +191,7 @@ def _build_suite_payload(
             serialized_testsets.append(
                 {
                     "id": testset_id,
+                    "stable_id": testset_stable_id,
                     "name": testset_name,
                     "tests": serialized_tests,
                 }
@@ -195,6 +200,7 @@ def _build_suite_payload(
         payload.append(
             {
                 "id": suite_id,
+                "stable_id": suite_stable_id,
                 "name": suite_name,
                 "testsets": serialized_testsets,
             }

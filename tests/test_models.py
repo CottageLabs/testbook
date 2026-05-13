@@ -248,6 +248,7 @@ class TestSyncFromSourceRepo(unittest.TestCase):
         synced_test = session.query(Test).first()
         self.assertIsNotNone(synced_test)
         self.assertEqual(synced_test.file_path, "testbook/auth.yml")
+        self.assertEqual(synced_test.stable_id, "valid-credentials")
 
         sync_state = session.query(BranchSyncState).filter_by(repo_name="org/repo", branch="main").first()
         self.assertIsNotNone(sync_state)
@@ -255,6 +256,132 @@ class TestSyncFromSourceRepo(unittest.TestCase):
 
         # ...existing code...
 
+        session.close()
+
+    def test_sync_uses_yaml_test_id_when_present(self):
+        mock_repo = MagicMock()
+        mock_repo.repo_name = "org/repo"
+        mock_repo.branch = "main"
+        test_yaml = {
+            "suite": "Auth",
+            "testset": "Login",
+            "tests": [
+                {
+                    "id": "AUTH-LOGIN-001",
+                    "title": "Valid credentials",
+                    "steps": [{"step": "Login"}],
+                }
+            ],
+        }
+        mock_repo.load_all_tests.return_value = [("testbook/auth.yml", test_yaml)]
+
+        session = self.SessionLocal()
+        sync_from_source_repo(mock_repo, session)
+
+        synced_test = session.query(Test).first()
+        self.assertEqual(synced_test.stable_id, "AUTH-LOGIN-001")
+        session.close()
+
+    def test_sync_stable_id_is_preserved_across_resync(self):
+        mock_repo = MagicMock()
+        mock_repo.repo_name = "org/repo"
+        mock_repo.branch = "main"
+        v1 = {
+            "suite": "Auth",
+            "testset": "Login",
+            "tests": [{"title": "Valid credentials", "steps": [{"step": "Login"}]}],
+        }
+        v2 = {
+            "suite": "Auth",
+            "testset": "Login",
+            "tests": [{"title": "Valid credentials", "steps": [{"step": "Login with MFA"}]}],
+        }
+
+        session = self.SessionLocal()
+        mock_repo.load_all_tests.return_value = [("testbook/auth.yml", v1)]
+        sync_from_source_repo(mock_repo, session)
+        first_id = session.query(Test).first().stable_id
+
+        mock_repo.load_all_tests.return_value = [("testbook/auth.yml", v2)]
+        sync_from_source_repo(mock_repo, session)
+        second_id = session.query(Test).first().stable_id
+
+        self.assertEqual(first_id, second_id)
+        self.assertEqual(first_id, "valid-credentials")
+        session.close()
+
+    def test_sync_suite_stable_id_derived_from_name(self):
+        mock_repo = MagicMock()
+        mock_repo.repo_name = "org/repo"
+        mock_repo.branch = "main"
+        test_yaml = {
+            "suite": "Authentication",
+            "testset": "Login",
+            "tests": [{"title": "Login", "steps": [{"step": "Go"}]}],
+        }
+        mock_repo.load_all_tests.return_value = [("testbook/auth.yml", test_yaml)]
+
+        session = self.SessionLocal()
+        sync_from_source_repo(mock_repo, session)
+
+        suite = session.query(Suite).first()
+        self.assertEqual(suite.stable_id, "authentication")
+        testset = session.query(TestSet).first()
+        self.assertEqual(testset.stable_id, "login")
+        session.close()
+
+    def test_sync_uses_yaml_suite_id_and_testset_id_when_present(self):
+        mock_repo = MagicMock()
+        mock_repo.repo_name = "org/repo"
+        mock_repo.branch = "main"
+        test_yaml = {
+            "suite": "Authentication",
+            "suite_id": "AUTH",
+            "testset": "Login",
+            "testset_id": "AUTH-LOGIN",
+            "tests": [{"title": "Login", "steps": [{"step": "Go"}]}],
+        }
+        mock_repo.load_all_tests.return_value = [("testbook/auth.yml", test_yaml)]
+
+        session = self.SessionLocal()
+        sync_from_source_repo(mock_repo, session)
+
+        suite = session.query(Suite).first()
+        self.assertEqual(suite.stable_id, "AUTH")
+        testset = session.query(TestSet).first()
+        self.assertEqual(testset.stable_id, "AUTH-LOGIN")
+        session.close()
+
+    def test_sync_suite_and_testset_stable_id_preserved_across_resync(self):
+        mock_repo = MagicMock()
+        mock_repo.repo_name = "org/repo"
+        mock_repo.branch = "main"
+        v1 = {
+            "suite": "Authentication",
+            "testset": "Login",
+            "tests": [{"title": "Login", "steps": [{"step": "Go"}]}],
+        }
+        v2 = {
+            "suite": "Authentication",
+            "testset": "Login",
+            "tests": [{"title": "Login", "steps": [{"step": "Go with MFA"}]}],
+        }
+
+        session = self.SessionLocal()
+        mock_repo.load_all_tests.return_value = [("testbook/auth.yml", v1)]
+        sync_from_source_repo(mock_repo, session)
+        suite_sid_1 = session.query(Suite).first().stable_id
+        ts_sid_1 = session.query(TestSet).first().stable_id
+
+        mock_repo.load_all_tests.return_value = [("testbook/auth.yml", v2)]
+        sync_from_source_repo(mock_repo, session)
+        suite_sid_2 = session.query(Suite).first().stable_id
+        ts_sid_2 = session.query(TestSet).first().stable_id
+
+        self.assertEqual(suite_sid_1, suite_sid_2)
+        self.assertEqual(ts_sid_1, ts_sid_2)
+        self.assertEqual(suite_sid_1, "authentication")
+        self.assertEqual(ts_sid_1, "login")
         session.close()
 
     def test_sync_groups_files_by_suite_name(self):

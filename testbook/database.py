@@ -9,6 +9,7 @@ Provides:
 from __future__ import annotations
 
 import os
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -61,13 +62,54 @@ def init_db() -> None:
 def _upgrade_schema(engine: Any) -> None:
     """Apply lightweight schema upgrades for existing local databases."""
     inspector = inspect(engine)
-    if "test" not in inspector.get_table_names():
+    existing_tables = inspector.get_table_names()
+    if "test" not in existing_tables:
         return
 
-    columns = {column["name"] for column in inspector.get_columns("test")}
-    if "file_path" not in columns:
+    test_columns = {c["name"] for c in inspector.get_columns("test")}
+    if "file_path" not in test_columns:
         with engine.begin() as connection:
             connection.execute(text("ALTER TABLE test ADD COLUMN file_path VARCHAR(512) NOT NULL DEFAULT ''"))
+    if "stable_id" not in test_columns:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE test ADD COLUMN stable_id VARCHAR(255) NOT NULL DEFAULT ''"))
+
+    if "suite" in existing_tables:
+        suite_columns = {c["name"] for c in inspector.get_columns("suite")}
+        if "stable_id" not in suite_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE suite ADD COLUMN stable_id VARCHAR(255) NOT NULL DEFAULT ''"))
+
+    if "testset" in existing_tables:
+        testset_columns = {c["name"] for c in inspector.get_columns("testset")}
+        if "stable_id" not in testset_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE testset ADD COLUMN stable_id VARCHAR(255) NOT NULL DEFAULT ''"))
+
+
+def _slugify_identity(value: object) -> str:
+    text_value = str(value or "").strip().lower()
+    if not text_value:
+        return "test"
+    slug = re.sub(r"[^a-z0-9]+", "-", text_value).strip("-")
+    return slug or "test"
+
+
+def _resolve_stable_id(explicit_id: str, name: str, used_ids: set[str], fallback_seed: str) -> str:
+    """Return a stable id, using explicit_id verbatim if given, else a slug from name."""
+    requested = explicit_id.strip() if explicit_id.strip() else _slugify_identity(name or fallback_seed)
+    candidate = requested
+    suffix = 2
+    while candidate in used_ids:
+        candidate = f"{requested}-{suffix}"
+        suffix += 1
+    used_ids.add(candidate)
+    return candidate
+
+
+def _resolve_test_stable_id(raw_test: dict[str, Any], used_ids: set[str], fallback_seed: str) -> str:
+    explicit_id = str(raw_test.get("id") or "").strip()
+    return _resolve_stable_id(explicit_id, raw_test.get("title") or "", used_ids, fallback_seed)
 
 
 def get_session() -> Session:
@@ -118,20 +160,33 @@ def sync_from_source_repo(
 
     try:
         # Step 1: Collect and structure all files by suite → testset
-        # This matches the logic in core.py read_structure()
-        suite_map = {}  # suite_name → testset_name → [(file_path, test_yaml)]
-        
+        # suite_map: suite_name → { "suite_id": str, "testsets": { testset_name → { "testset_id": str, "files": [(path, yaml)] } } }
+        suite_map: dict[str, dict] = {}
+
         for file_path, test_yaml in source_repo.load_all_tests():
             suite_name = test_yaml.get("suite", "")
             testset_name = test_yaml.get("testset", "")
-            
+
             if suite_name not in suite_map:
-                suite_map[suite_name] = {}
-            if testset_name not in suite_map[suite_name]:
-                suite_map[suite_name][testset_name] = []
-            
-            suite_map[suite_name][testset_name].append((file_path, test_yaml))
-        
+                suite_map[suite_name] = {
+                    "suite_id": str(test_yaml.get("suite_id") or "").strip(),
+                    "testsets": {},
+                }
+            elif not suite_map[suite_name]["suite_id"]:
+                # Accept first explicit suite_id seen for this suite name
+                suite_map[suite_name]["suite_id"] = str(test_yaml.get("suite_id") or "").strip()
+
+            testsets = suite_map[suite_name]["testsets"]
+            if testset_name not in testsets:
+                testsets[testset_name] = {
+                    "testset_id": str(test_yaml.get("testset_id") or "").strip(),
+                    "files": [],
+                }
+            elif not testsets[testset_name]["testset_id"]:
+                testsets[testset_name]["testset_id"] = str(test_yaml.get("testset_id") or "").strip()
+
+            testsets[testset_name]["files"].append((file_path, test_yaml))
+
         # Step 2: Delete any pre-existing records for this repo/branch
         existing = session.query(Suite).filter_by(
             repo_name=source_repo.repo_name,
@@ -143,8 +198,11 @@ def sync_from_source_repo(
         
         # Step 3: Create Suite objects, one per unique suite name
         count = 0
+        used_suite_ids: set[str] = set()
         for suite_name in sorted(suite_map.keys()):
+            suite_info = suite_map[suite_name]
             suite = Suite(
+                stable_id=_resolve_stable_id(suite_info["suite_id"], suite_name, used_suite_ids, f"suite-{len(used_suite_ids) + 1}"),
                 name=suite_name,
                 repo_name=source_repo.repo_name,
                 branch=source_repo.branch,
@@ -152,30 +210,38 @@ def sync_from_source_repo(
             )
             session.add(suite)
             session.flush()
-            
+
             # Create TestSets and Tests for this Suite
-            testset_map = suite_map[suite_name]
-            for testset_idx, testset_name in enumerate(sorted(testset_map.keys())):
+            testsets_info = suite_info["testsets"]
+            used_testset_ids: set[str] = set()
+            for testset_idx, testset_name in enumerate(sorted(testsets_info.keys())):
+                ts_info = testsets_info[testset_name]
                 testset = TestSet(
+                    stable_id=_resolve_stable_id(ts_info["testset_id"], testset_name, used_testset_ids, f"testset-{testset_idx + 1}"),
                     name=testset_name,
                     suite_id=suite.id,
                     order_index=testset_idx,
                 )
                 session.add(testset)
                 session.flush()
-                
+
                 # Collect all tests from all files for this testset
-                files_for_testset = testset_map[testset_name]
                 all_tests = []
-                for file_path, test_yaml_obj in files_for_testset:
+                for file_path, test_yaml_obj in ts_info["files"]:
                     all_tests.extend(
                         (file_path, individual_test)
                         for individual_test in test_yaml_obj.get("tests", [])
                     )
 
                 # Create Test objects, maintaining order across files
+                used_stable_ids: set[str] = set()
                 for test_idx, (test_file_path, test_yaml_obj) in enumerate(all_tests):
                     test = Test(
+                        stable_id=_resolve_test_stable_id(
+                            test_yaml_obj,
+                            used_stable_ids,
+                            f"{testset_name}-{test_idx + 1}",
+                        ),
                         title=test_yaml_obj.get("title", ""),
                         testset_id=testset.id,
                         file_path=test_file_path,
