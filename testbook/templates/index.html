@@ -121,7 +121,7 @@
                         step.path ? `<div class="step-link"><strong>Path:</strong> ${escapeHtml(step.path)}</div>` : '',
                         step.resource ? `<div class="step-link"><strong>Resource:</strong> ${escapeHtml(step.resource)}</div>` : ''
                     ].join('');
-                    return `<li class="step-item"><div class="step-instruction"><span class="step-number">${stepIdx + 1}.</span> ${escapeHtml(step.text || '')}</div>${linksHtml}${resultsHtml}</li>`;
+                    return `<li class="step-item"><div class="step-instruction">${escapeHtml(step.text || '')}</div>${linksHtml}${resultsHtml}</li>`;
                 }).join('');
 
                 return `

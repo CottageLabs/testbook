@@ -474,9 +474,6 @@ p {
     color: var(--text);
 }
 
-.step-number {
-    font-weight: 700;
-}
 
 .step-link {
     margin-left: 18px;
