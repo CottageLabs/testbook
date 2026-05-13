@@ -8,6 +8,7 @@
 source_repo:
   repo_name: "myorg/myproject"
   tests_path: "testbook"
+  resources_path: "testbook/resources"
   default_branch: "main"
   # Leave blank and set TESTBOOK_SOURCE_TOKEN env var instead for production:
   github_token: ""

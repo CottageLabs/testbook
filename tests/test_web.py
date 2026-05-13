@@ -7,6 +7,7 @@ network access, or database are required.
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from testbook.config import reset_config
@@ -192,6 +193,65 @@ class TestIndexRoute(unittest.TestCase):
         response = self.client.get("/")
         self.assertIn(
             b"https://github.com/org/repo/edit/main/testbook/authentication_1.yml",
+            response.data,
+        )
+
+    def test_index_serializes_github_blob_url_for_step_resources(self):
+        suite = _mock_suite("Authentication", 1)
+        suite.testsets[0].tests[0].steps = [
+            SimpleNamespace(
+                id=1,
+                text="Open linked resource",
+                path="",
+                resource="/fixtures/manuals/login.md",
+                order_index=0,
+                results=[],
+            )
+        ]
+        session_instance = MagicMock()
+        query_mock = MagicMock()
+        query_mock.options.return_value.filter_by.return_value.all.return_value = [suite]
+        session_instance.query.return_value = query_mock
+        self.session_mock_obj.return_value = session_instance
+
+        response = self.client.get("/")
+        self.assertIn(
+            b"https://github.com/org/repo/blob/main/fixtures/manuals/login.md",
+            response.data,
+        )
+
+    def test_index_serializes_github_blob_url_with_configured_resources_path(self):
+        suite = _mock_suite("Authentication", 1)
+        suite.testsets[0].tests[0].steps = [
+            SimpleNamespace(
+                id=1,
+                text="Open linked resource",
+                path="",
+                resource="fixtures/manuals/login.md",
+                order_index=0,
+                results=[],
+            )
+        ]
+        session_instance = MagicMock()
+        query_mock = MagicMock()
+        query_mock.options.return_value.filter_by.return_value.all.return_value = [suite]
+        session_instance.query.return_value = query_mock
+        self.session_mock_obj.return_value = session_instance
+
+        with patch(
+            "testbook.web.get_source_repo_config",
+            return_value={
+                "repo_name": "org/repo",
+                "default_branch": "main",
+                "tests_path": "testbook",
+                "resources_path": "doajtest",
+                "github_token": "tok",
+            },
+        ):
+            response = self.client.get("/")
+
+        self.assertIn(
+            b"https://github.com/org/repo/blob/main/doajtest/fixtures/manuals/login.md",
             response.data,
         )
 

@@ -119,7 +119,9 @@
                         : '';
                     const linksHtml = [
                         step.path ? `<div class="step-link"><strong>Path:</strong> ${escapeHtml(step.path)}</div>` : '',
-                        step.resource ? `<div class="step-link"><strong>Resource:</strong> ${escapeHtml(step.resource)}</div>` : ''
+                        step.resource
+                            ? `<div class="step-link"><strong>Resource:</strong> ${step.resource_url ? `<a href="${escapeHtml(step.resource_url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(step.resource)}</a>` : escapeHtml(step.resource)}</div>`
+                            : ''
                     ].join('');
                     return `<li class="step-item"><div class="step-instruction">${escapeHtml(step.text || '')}</div>${linksHtml}${resultsHtml}</li>`;
                 }).join('');

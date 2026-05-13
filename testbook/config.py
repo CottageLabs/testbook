@@ -108,6 +108,7 @@ def get_source_repo_config() -> dict[str, Any]:
     return {
         "repo_name": repo_name,
         "tests_path": section.get("tests_path", "testbook"),
+        "resources_path": section.get("resources_path", ""),
         "default_branch": section.get("default_branch", "main"),
         "github_token": token,
     }

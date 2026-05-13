@@ -41,7 +41,25 @@ def _id_value(value: object, default: str) -> str:
     return default
 
 
-def _build_suite_payload(cached_suites: list[Suite]) -> list[dict[str, object]]:
+def _github_file_url(repo_name: str, branch: str, repo_relative_path: str, mode: str) -> str:
+    if not repo_name or not branch or not repo_relative_path:
+        return ""
+    if repo_relative_path.startswith(("http://", "https://")):
+        return repo_relative_path
+    normalized_path = repo_relative_path.lstrip("/")
+    if not normalized_path:
+        return ""
+    return (
+        f"https://github.com/{repo_name}/{mode}/"
+        f"{quote(str(branch), safe='')}/"
+        f"{quote(normalized_path, safe='/')}"
+    )
+
+
+def _build_suite_payload(
+    cached_suites: list[Suite],
+    resources_path: str = "",
+) -> list[dict[str, object]]:
     payload: list[dict[str, object]] = []
     for suite_idx, suite in enumerate(cached_suites):
         suite_id = _id_value(getattr(suite, "id", ""), f"suite-{suite_idx + 1}")
@@ -67,13 +85,12 @@ def _build_suite_payload(cached_suites: list[Suite]) -> list[dict[str, object]]:
                 test_id = _id_value(getattr(test, "id", ""), f"{testset_id}-test-{test_idx + 1}")
                 test_title = _text_value(getattr(test, "title", ""), f"Test {test_idx + 1}")
                 file_path = _text_value(getattr(test, "file_path", ""), "")
-                github_edit_url = ""
-                if file_path and getattr(suite, "repo_name", "") and getattr(suite, "branch", ""):
-                    github_edit_url = (
-                        f"https://github.com/{suite.repo_name}/edit/"
-                        f"{quote(str(suite.branch), safe='')}/"
-                        f"{quote(file_path, safe='/')}"
-                    )
+                github_edit_url = _github_file_url(
+                    _text_value(getattr(suite, "repo_name", ""), ""),
+                    _text_value(getattr(suite, "branch", ""), ""),
+                    file_path,
+                    "edit",
+                )
                 context = getattr(test, "context", {}) if isinstance(getattr(test, "context", {}), dict) else {}
 
                 raw_setup_items = _list_value(getattr(test, "setup_items", []))
@@ -95,6 +112,14 @@ def _build_suite_payload(cached_suites: list[Suite]) -> list[dict[str, object]]:
                     )
                 ):
                     raw_results = _list_value(getattr(step, "results", []))
+                    resource_path = _text_value(getattr(step, "resource", ""), "")
+                    base_resources_path = _text_value(resources_path, "").strip("/")
+                    normalized_resource_path = resource_path.strip("/")
+                    resource_repo_path = normalized_resource_path
+                    if base_resources_path and normalized_resource_path:
+                        resource_repo_path = f"{base_resources_path}/{normalized_resource_path}"
+                    elif base_resources_path:
+                        resource_repo_path = base_resources_path
                     results = [
                         _text_value(getattr(result, "text", ""), "")
                         for result in sorted(
@@ -108,7 +133,13 @@ def _build_suite_payload(cached_suites: list[Suite]) -> list[dict[str, object]]:
                             "id": _id_value(getattr(step, "id", ""), f"{test_id}-step-{step_idx + 1}"),
                             "text": _text_value(getattr(step, "text", ""), ""),
                             "path": _text_value(getattr(step, "path", ""), ""),
-                            "resource": _text_value(getattr(step, "resource", ""), ""),
+                            "resource": resource_path,
+                            "resource_url": _github_file_url(
+                                _text_value(getattr(suite, "repo_name", ""), ""),
+                                _text_value(getattr(suite, "branch", ""), ""),
+                                resource_repo_path,
+                                "blob",
+                            ),
                             "results": results,
                         }
                     )
@@ -184,7 +215,10 @@ def create_app() -> Flask:
             session.close()
 
             branches = _make_source_repo(selected_branch).list_branches()
-            suite_payload = _build_suite_payload(cached_suites)
+            suite_payload = _build_suite_payload(
+                cached_suites,
+                _text_value(cfg.get("resources_path", ""), ""),
+            )
 
             if cached_suites:
                 # Display cached data
