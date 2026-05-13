@@ -19,6 +19,7 @@
 }
 
 html, body {
+    height: 100%;
     min-height: 100%;
 }
 
@@ -26,6 +27,7 @@ body {
     margin: 0;
     background: var(--bg);
     color: var(--text);
+    overflow: hidden;
 }
 
 code,
@@ -38,9 +40,11 @@ p {
 }
 
 .app-shell {
+    height: 100vh;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .app-header {
@@ -243,7 +247,6 @@ p {
 }
 
 .content-panel {
-    min-height: calc(100vh - 170px);
     padding: 28px;
 }
 
