@@ -7,94 +7,93 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-<main class="page">
+<div class="app-shell">
+    <header class="app-header">
+        <div class="app-topbar">
+            <div class="app-brand">
+                <p class="eyebrow">Testbook</p>
+                <h1>{% if repo_name %}{{ repo_name }}{% else %}Test Repository{% endif %}</h1>
+            </div>
 
-    <header class="hero">
-        <p class="eyebrow">Testbook</p>
-        <h1>{% if repo_name %}{{ repo_name }}{% else %}Test Repository{% endif %}</h1>
+            <div class="branch-controls">
+                <form method="get" action="/" class="branch-form">
+                    <label for="branch-select" class="branch-label">Branch</label>
+                    <select id="branch-select" name="branch" onchange="this.form.submit()">
+                        {% for branch in branches %}
+                        <option value="{{ branch }}"{% if branch == selected_branch %} selected{% endif %}>{{ branch }}</option>
+                        {% endfor %}
+                    </select>
+                    <noscript><button type="submit">Go</button></noscript>
+                </form>
+
+                {% if show_sync_button %}
+                <form method="post" action="/sync" class="sync-form">
+                    <input type="hidden" name="branch" value="{{ selected_branch }}">
+                    <button type="submit" class="btn btn-primary">
+                        {% if need_sync %}Sync Tests{% else %}Refresh{% endif %}
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <nav class="app-subnav" aria-label="Workbench sections">
+            <a class="subnav-link active" href="#">Test Suites</a>
+            <a class="subnav-link" href="#">Test Plans</a>
+            <a class="subnav-link" href="#">Executions</a>
+        </nav>
     </header>
 
-    {# ------------------------------------------------------------------ #}
-    {# Error banner                                                         #}
-    {# ------------------------------------------------------------------ #}
-    {% if error %}
-    <section class="panel panel--error">
-        <h2>Configuration problem</h2>
-        <p>{{ error }}</p>
-        <p>Edit <code>config.yml</code> (see <code>config.yml.example</code> for the expected shape) and restart the server.</p>
-    </section>
-    {% endif %}
-
-    {# ------------------------------------------------------------------ #}
-    {# Branch selector + sync control                                       #}
-    {# ------------------------------------------------------------------ #}
-    {% if not error %}
-    <section class="panel">
-        <div class="branch-controls">
-            <form method="get" action="/" class="branch-form">
-                <label for="branch-select" class="branch-label">Branch</label>
-                <select id="branch-select" name="branch" onchange="this.form.submit()">
-                    {% for branch in branches %}
-                    <option value="{{ branch }}"
-                        {% if branch == selected_branch %}selected{% endif %}>
-                        {{ branch }}
-                    </option>
-                    {% endfor %}
-                </select>
-                <noscript>
-                    <button type="submit">Go</button>
-                </noscript>
-            </form>
-
-            {% if show_sync_button %}
-            <form method="post" action="/sync" class="sync-form">
-                <input type="hidden" name="branch" value="{{ selected_branch }}">
-                <button type="submit" class="btn btn-primary">
-                    {% if need_sync %}Sync Tests{% else %}Refresh{% endif %}
-                </button>
-            </form>
-            {% endif %}
-        </div>
-    </section>
-
-    {# ------------------------------------------------------------------ #}
-    {# Test hierarchy (Suite → TestSet → Test)                              #}
-    {# ------------------------------------------------------------------ #}
-    {% if suites %}
-    <section class="panel">
-        <h2>
-            Test Suites
-            <span class="badge">{{ suites | length }}</span>
-        </h2>
-
-        <ul class="suite-list">
-            {% for suite in suites %}
-            <li class="suite-item" data-suite-id="{{ suite.id }}">
-                <div class="suite-header">
-                    <button class="toggle-btn" type="button" aria-expanded="true" aria-label="Toggle suite">
-                        <span class="toggle-icon">▼</span>
-                    </button>
-                    <span class="suite-name">{{ suite.name }}</span>
-                    <span class="testset-count">{{ suite.testsets | length }} testset{{ '' if suite.testsets | length == 1 else 's' }}</span>
+    <div class="app-body">
+        <aside class="app-sidebar">
+            {% if error %}
+            <section class="panel panel--error">
+                <h2>Configuration problem</h2>
+                <p>{{ error }}</p>
+                <p>Edit <code>config.yml</code> (see <code>config.yml.example</code> for the expected shape) and restart the server.</p>
+            </section>
+            {% else %}
+            <section class="panel panel--sidebar">
+                <div class="panel-title-row">
+                    <h2>Navigation</h2>
+                    {% if suites %}
+                    <span class="badge">{{ suites | length }}</span>
+                    {% endif %}
                 </div>
 
-                {% if suite.testsets %}
-                <ul class="testset-list suite-content" data-suite-id="{{ suite.id }}">
-                    {% for testset in suite.testsets %}
-                    <li class="testset-item" data-testset-id="{{ testset.id }}">
-                        <div class="testset-header">
-                            <button class="toggle-btn" type="button" aria-expanded="true" aria-label="Toggle testset">
+                {% if suites %}
+                <ul class="suite-list">
+                    {% for suite in suites %}
+                    <li class="suite-item" data-suite-id="{{ suite.id }}">
+                        <div class="suite-header">
+                            <button class="toggle-btn" type="button" aria-expanded="true" aria-label="Toggle suite">
                                 <span class="toggle-icon">▼</span>
                             </button>
-                            <span class="testset-name">{{ testset.name }}</span>
-                            <span class="test-count">{{ testset.tests | length }} test{{ '' if testset.tests | length == 1 else 's' }}</span>
+                            <span class="suite-name">{{ suite.name }}</span>
+                            <span class="testset-count">{{ suite.testsets | length }} testset{{ '' if suite.testsets | length == 1 else 's' }}</span>
                         </div>
 
-                        {% if testset.tests %}
-                        <ul class="test-list testset-content" data-testset-id="{{ testset.id }}">
-                            {% for test in testset.tests %}
-                            <li class="test-item">
-                                <span class="test-title">{{ test.title }}</span>
+                        {% if suite.testsets %}
+                        <ul class="testset-list suite-content" data-suite-id="{{ suite.id }}">
+                            {% for testset in suite.testsets %}
+                            <li class="testset-item" data-testset-id="{{ testset.id }}">
+                                <div class="testset-header">
+                                    <button class="toggle-btn" type="button" aria-expanded="true" aria-label="Toggle testset">
+                                        <span class="toggle-icon">▼</span>
+                                    </button>
+                                    <span class="testset-name">{{ testset.name }}</span>
+                                    <span class="test-count">{{ testset.tests | length }} test{{ '' if testset.tests | length == 1 else 's' }}</span>
+                                </div>
+
+                                {% if testset.tests %}
+                                <ul class="test-list testset-content" data-testset-id="{{ testset.id }}">
+                                    {% for test in testset.tests %}
+                                    <li class="test-item">
+                                        <span class="test-title">{{ test.title }}</span>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                                {% endif %}
                             </li>
                             {% endfor %}
                         </ul>
@@ -102,58 +101,62 @@
                     </li>
                     {% endfor %}
                 </ul>
+                {% elif not need_sync %}
+                <p class="muted">No tests synced for <strong>{{ selected_branch }}</strong> yet. Click "Sync Tests" to load them.</p>
+                {% else %}
+                <p class="muted">Choose a branch and sync to load its tests into the local cache.</p>
                 {% endif %}
-            </li>
-            {% endfor %}
-        </ul>
-    </section>
-    {% elif not need_sync %}
-    <section class="panel panel--empty">
-        <p>No tests synced for <strong>{{ selected_branch }}</strong> yet. Click "Sync Tests" to load them.</p>
-    </section>
-    {% endif %}
-    {% endif %}
+            </section>
+            {% endif %}
+        </aside>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Handle suite toggle buttons (only direct children of suite-header)
-            document.querySelectorAll('.suite-header .toggle-btn').forEach(btn => {
-                btn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();  // Prevent bubbling to parent handlers
-                    const suiteItem = this.closest('.suite-item');
-                    const content = suiteItem.querySelector('.suite-content');
-                    const icon = this.querySelector('.toggle-icon');
+        <main class="app-main">
+            <section class="content-panel">
+                <h2>test content here</h2>
+                <p class="lead">This area will later show the selected suite, test plan, or execution details.</p>
+                {% if selected_branch %}
+                <p class="muted">Active branch: <strong>{{ selected_branch }}</strong></p>
+                {% endif %}
+            </section>
+        </main>
+    </div>
+</div>
 
-                    if (content) {
-                        content.classList.toggle('collapsed');
-                        const isCollapsed = content.classList.contains('collapsed');
-                        this.setAttribute('aria-expanded', !isCollapsed);
-                        icon.textContent = isCollapsed ? '▶' : '▼';
-                    }
-                });
-            });
-
-            // Handle testset toggle buttons (only direct children of testset-header)
-            document.querySelectorAll('.testset-header .toggle-btn').forEach(btn => {
-                btn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();  // Prevent bubbling to parent handlers
-                    const testsetItem = this.closest('.testset-item');
-                    const content = testsetItem.querySelector('.test-list');
-                    const icon = this.querySelector('.toggle-icon');
-
-                    if (content) {
-                        content.classList.toggle('collapsed');
-                        const isCollapsed = content.classList.contains('collapsed');
-                        this.setAttribute('aria-expanded', !isCollapsed);
-                        icon.textContent = isCollapsed ? '▶' : '▼';
-                    }
-                });
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.suite-header .toggle-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const suiteItem = this.closest('.suite-item');
+                const content = suiteItem.querySelector('.suite-content');
+                const icon = this.querySelector('.toggle-icon');
+                if (content) {
+                    content.classList.toggle('collapsed');
+                    const isCollapsed = content.classList.contains('collapsed');
+                    this.setAttribute('aria-expanded', !isCollapsed);
+                    icon.textContent = isCollapsed ? '▶' : '▼';
+                }
             });
         });
-    </script>
 
-</main>
+        document.querySelectorAll('.testset-header .toggle-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const testsetItem = this.closest('.testset-item');
+                const content = testsetItem.querySelector('.test-list');
+                const icon = this.querySelector('.toggle-icon');
+                if (content) {
+                    content.classList.toggle('collapsed');
+                    const isCollapsed = content.classList.contains('collapsed');
+                    this.setAttribute('aria-expanded', !isCollapsed);
+                    icon.textContent = isCollapsed ? '▶' : '▼';
+                }
+            });
+        });
+    });
+</script>
+
 </body>
 </html>

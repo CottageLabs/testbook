@@ -96,6 +96,18 @@ class TestIndexRoute(unittest.TestCase):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
 
+    def test_workbench_shell_and_placeholder_text_present(self):
+        session_instance = MagicMock()
+        query_mock = MagicMock()
+        query_mock.options.return_value.filter_by.return_value.all.return_value = []
+        session_instance.query.return_value = query_mock
+        self.session_mock_obj.return_value = session_instance
+
+        response = self.client.get("/")
+        self.assertIn(b"test content here", response.data)
+        self.assertIn(b"Test Plans", response.data)
+        self.assertIn(b"Executions", response.data)
+
     def test_index_shows_sync_button_when_no_cached_data(self):
         # Mock the query to return no suites (need sync)
         session_instance = MagicMock()
