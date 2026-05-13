@@ -126,7 +126,10 @@
 
                 return `
                     <article class="test-card" id="test-${escapeHtml(test.id)}">
-                        <h3>${testIdx + 1}. ${escapeHtml(test.title)}</h3>
+                        <div class="test-card-header">
+                            <h3>${testIdx + 1}. ${escapeHtml(test.title)}</h3>
+                            ${test.github_edit_url ? `<a class="github-edit-link" href="${escapeHtml(test.github_edit_url)}" target="_blank" rel="noopener noreferrer">Edit on GitHub</a>` : ''}
+                        </div>
                         ${contextHtml}
                         ${setupHtml}
                         <div class="test-steps">

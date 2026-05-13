@@ -439,8 +439,27 @@ p {
     margin-bottom: 12px;
 }
 
+.test-card-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
 .test-card h3 {
-    margin: 0 0 10px;
+    margin: 0;
+}
+
+.github-edit-link {
+    font-size: 0.9rem;
+    color: var(--accent);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.github-edit-link:hover {
+    text-decoration: underline;
 }
 
 .test-context,

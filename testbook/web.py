@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for
 from sqlalchemy.orm import joinedload
+from urllib.parse import quote
 
 from testbook.config import ConfigurationError, get_source_repo_config
 from testbook.database import get_session, init_db, sync_from_source_repo
@@ -65,6 +66,14 @@ def _build_suite_payload(cached_suites: list[Suite]) -> list[dict[str, object]]:
             for test_idx, test in enumerate(sorted_tests):
                 test_id = _id_value(getattr(test, "id", ""), f"{testset_id}-test-{test_idx + 1}")
                 test_title = _text_value(getattr(test, "title", ""), f"Test {test_idx + 1}")
+                file_path = _text_value(getattr(test, "file_path", ""), "")
+                github_edit_url = ""
+                if file_path and getattr(suite, "repo_name", "") and getattr(suite, "branch", ""):
+                    github_edit_url = (
+                        f"https://github.com/{suite.repo_name}/edit/"
+                        f"{quote(str(suite.branch), safe='')}/"
+                        f"{quote(file_path, safe='/')}"
+                    )
                 context = getattr(test, "context", {}) if isinstance(getattr(test, "context", {}), dict) else {}
 
                 raw_setup_items = _list_value(getattr(test, "setup_items", []))
@@ -108,6 +117,8 @@ def _build_suite_payload(cached_suites: list[Suite]) -> list[dict[str, object]]:
                     {
                         "id": test_id,
                         "title": test_title,
+                        "file_path": file_path,
+                        "github_edit_url": github_edit_url,
                         "context": context,
                         "setup": setup_items,
                         "steps": serialized_steps,

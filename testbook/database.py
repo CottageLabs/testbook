@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, inspect, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from testbook.github_connector import SourceRepo
@@ -53,6 +53,19 @@ def init_db() -> None:
     """Create the database schema and tables."""
     engine = _get_engine()
     Base.metadata.create_all(engine)
+    _upgrade_schema(engine)
+
+
+def _upgrade_schema(engine: Any) -> None:
+    """Apply lightweight schema upgrades for existing local databases."""
+    inspector = inspect(engine)
+    if "test" not in inspector.get_table_names():
+        return
+
+    columns = {column["name"] for column in inspector.get_columns("test")}
+    if "file_path" not in columns:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE test ADD COLUMN file_path VARCHAR(512) NOT NULL DEFAULT ''"))
 
 
 def get_session() -> Session:
@@ -153,13 +166,17 @@ def sync_from_source_repo(
                 files_for_testset = testset_map[testset_name]
                 all_tests = []
                 for file_path, test_yaml_obj in files_for_testset:
-                    all_tests.extend(test_yaml_obj.get("tests", []))
-                
+                    all_tests.extend(
+                        (file_path, individual_test)
+                        for individual_test in test_yaml_obj.get("tests", [])
+                    )
+
                 # Create Test objects, maintaining order across files
-                for test_idx, test_yaml_obj in enumerate(all_tests):
+                for test_idx, (test_file_path, test_yaml_obj) in enumerate(all_tests):
                     test = Test(
                         title=test_yaml_obj.get("title", ""),
                         testset_id=testset.id,
+                        file_path=test_file_path,
                         context=test_yaml_obj.get("context", {}),
                         order_index=test_idx,
                     )

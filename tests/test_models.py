@@ -245,6 +245,10 @@ class TestSyncFromSourceRepo(unittest.TestCase):
         # Now returns count of suites, not files
         self.assertEqual(count, 1)
 
+        synced_test = session.query(Test).first()
+        self.assertIsNotNone(synced_test)
+        self.assertEqual(synced_test.file_path, "testbook/auth.yml")
+
         # ...existing code...
 
         session.close()

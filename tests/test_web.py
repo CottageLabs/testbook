@@ -22,19 +22,28 @@ def _mock_source_repo(branches=("main", "develop")):
 def _mock_suite(name="Auth", testsets_count=2):
     """Return a MagicMock that quacks like a Suite with TestSets and Tests."""
     suite = MagicMock()
+    suite.id = 1
     suite.name = name
     suite.repo_name = "org/repo"
     suite.branch = "main"
+    suite.file_path = ""
 
     # Create mock testsets with tests
     testsets = []
     for i in range(testsets_count):
         testset = MagicMock()
+        testset.id = i + 1
         testset.name = f"TestSet {i+1}"
         tests = []
         for j in range(2):
             test = MagicMock()
+            test.id = (i * 10) + j + 1
             test.title = f"Test {j+1}"
+            test.file_path = f"testbook/{name.lower()}_{i+1}.yml"
+            test.context = {}
+            test.setup_items = []
+            test.steps = []
+            test.dependencies = []
             tests.append(test)
         testset.tests = tests
         testsets.append(testset)
@@ -171,6 +180,20 @@ class TestIndexRoute(unittest.TestCase):
         response = self.client.get("/")
         # Check that test titles appear
         self.assertIn(b"Test 1", response.data)
+
+    def test_index_serializes_github_edit_url_for_tests(self):
+        suite = _mock_suite("Authentication", 1)
+        session_instance = MagicMock()
+        query_mock = MagicMock()
+        query_mock.options.return_value.filter_by.return_value.all.return_value = [suite]
+        session_instance.query.return_value = query_mock
+        self.session_mock_obj.return_value = session_instance
+
+        response = self.client.get("/")
+        self.assertIn(
+            b"https://github.com/org/repo/edit/main/testbook/authentication_1.yml",
+            response.data,
+        )
 
 
 class TestSyncRoute(unittest.TestCase):

@@ -114,6 +114,7 @@ class Test(Base):
     id = Column(Integer, primary_key=True)
     title = Column(String(255), nullable=False)
     testset_id = Column(Integer, ForeignKey("testset.id"), nullable=False)
+    file_path = Column(String(512), nullable=False, default="")
     context = Column(JSON, default={})
     order_index = Column(Integer, default=0)
 
