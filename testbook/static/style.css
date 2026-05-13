@@ -690,6 +690,10 @@ p {
     padding-bottom: 8px;
 }
 
+.content-panel {
+    padding: 24px;
+}
+
 .test-card {
     border: 1px solid var(--border);
     border-radius: 10px;
