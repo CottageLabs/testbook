@@ -486,8 +486,6 @@ def create_app() -> Flask:
                     (plan for plan in plans if str(getattr(plan, "id", "")) == selected_plan_id_raw),
                     None,
                 )
-            if selected_plan is None and plans:
-                selected_plan = plans[0]
 
             suite_payload = _build_suite_payload(
                 cached_suites,
@@ -520,6 +518,8 @@ def create_app() -> Flask:
                 plans=_serialize_plans(plans),
                 selected_plan_id=_id_value(getattr(selected_plan, "id", ""), "") if selected_plan else "",
                 selected_plan_title=_text_value(getattr(selected_plan, "title", ""), ""),
+                active_plan_id=_id_value(getattr(selected_plan, "id", ""), "") if selected_plan else "",
+                active_plan_title=_text_value(getattr(selected_plan, "title", ""), ""),
                 show_sync_button=True,
                 need_sync=not cached_suites,
                 default_base_url=cfg.get("default_base_url", "http://localhost:5004/"),
@@ -538,6 +538,10 @@ def create_app() -> Flask:
                     "active_nav": "plans",
                     "branch_form_action": "/plans",
                     "return_view": "plans",
+                    "selected_plan_id": "",
+                    "selected_plan_title": "",
+                    "active_plan_id": "",
+                    "active_plan_title": "",
                 }
             )
             return render_template("plans.html", **context)
@@ -549,6 +553,10 @@ def create_app() -> Flask:
                     "active_nav": "plans",
                     "branch_form_action": "/plans",
                     "return_view": "plans",
+                    "selected_plan_id": "",
+                    "selected_plan_title": "",
+                    "active_plan_id": "",
+                    "active_plan_title": "",
                 }
             )
             return render_template("plans.html", **context)

@@ -516,7 +516,7 @@ class TestPlansRoute(unittest.TestCase):
         session_instance.query.side_effect = [suites_query, sync_query, plans_query]
         self.session_mock_obj.return_value = session_instance
 
-        response = self.client.get("/plans")
+        response = self.client.get("/plans?plan_id=7")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Smoke Plan", response.data)
         self.assertIn(b"Plan Tests: Smoke Plan", response.data)
