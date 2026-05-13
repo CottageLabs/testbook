@@ -58,20 +58,23 @@ p {
 
 .app-topbar {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    gap: 24px;
-    padding: 18px 24px 14px;
-}
-
-.app-base-url-controls {
-    padding: 0 24px 14px;
+    gap: 16px;
+    padding: 10px 18px 8px;
 }
 
 .app-brand h1 {
     margin: 0;
     font-size: 1.35rem;
     line-height: 1.2;
+}
+
+.app-brand-main {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
 }
 
 .eyebrow {
@@ -86,7 +89,7 @@ p {
 .branch-controls {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 10px;
     flex-wrap: wrap;
     justify-content: flex-end;
 }
@@ -94,13 +97,8 @@ p {
 .branch-form {
     display: flex;
     align-items: center;
-    gap: 12px;
-}
-
-.branch-form-stack {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
 .branch-label {
@@ -125,6 +123,18 @@ p {
     color: var(--muted);
 }
 
+.branch-sync-inline {
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.branch-sync-sep {
+    color: var(--muted);
+}
+
 .branch-sync-status {
     margin: 0;
     font-size: 0.82rem;
@@ -146,8 +156,12 @@ p {
 .base-url-form {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
     flex-wrap: wrap;
+}
+
+.base-url-form--compact {
+    gap: 6px;
 }
 
 .base-url-label {
@@ -157,13 +171,13 @@ p {
 }
 
 .base-url-input {
-    padding: 8px 10px;
+    padding: 7px 9px;
     border: 1px solid var(--border);
     border-radius: 8px;
     font-size: 0.95rem;
     background: var(--surface-alt);
     color: var(--text);
-    min-width: 250px;
+    min-width: 190px;
 }
 
 .base-url-input:focus {
@@ -176,7 +190,7 @@ p {
 .btn-base-url,
 .btn-base-url-reset {
     display: inline-block;
-    padding: 8px 14px;
+    padding: 7px 10px;
     border: none;
     border-radius: 8px;
     font-size: 0.9rem;
@@ -209,6 +223,8 @@ p {
 
 .sync-form {
     margin: 0;
+    display: flex;
+    align-items: center;
 }
 
 .btn {
@@ -679,6 +695,10 @@ ul {
     .branch-controls {
         width: 100%;
         justify-content: flex-start;
+    }
+
+    .branch-sync-inline {
+        white-space: normal;
     }
 
     .content-panel,
