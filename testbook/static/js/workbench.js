@@ -15,6 +15,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const planTestIdsNode = document.getElementById('plan-test-ids');
     let planTestIds = new Set(planTestIdsNode ? JSON.parse(planTestIdsNode.textContent || '[]').map(String) : []);
 
+    // Track currently displayed content for refreshing
+    let currentlyDisplayedTarget = null;
+
     const contentRoot = document.getElementById('test-content-root');
     const appMain = document.querySelector('.app-main');
     const syncButton = document.getElementById('sync-button');
@@ -141,6 +144,24 @@ document.addEventListener('DOMContentLoaded', function() {
     // -----------------------------------------------------------------------
     // Plan button logic
     // -----------------------------------------------------------------------
+
+    /**
+     * Get all test IDs that would be affected by an action on a given item.
+     * For a test: just that test
+     * For a testset: all tests in that testset
+     * For a suite: all tests in all testsets in that suite
+     */
+    function getAffectedTestIds(itemId, itemType) {
+        if (itemType === 'test') {
+            return new Set([String(itemId)]);
+        } else if (itemType === 'testset') {
+            return testsetTestIds.get(String(itemId)) || new Set();
+        } else if (itemType === 'suite') {
+            return suiteTestIds.get(String(itemId)) || new Set();
+        }
+        return new Set();
+    }
+
     function makePlanBtn(label, action, testIds, cssClass) {
         const btn = document.createElement('button');
         btn.type = 'button';
@@ -210,11 +231,23 @@ document.addEventListener('DOMContentLoaded', function() {
         })
             .then(r => r.ok ? r.json() : Promise.reject(r))
             .then(data => {
+                // Update plan membership from API response
                 planTestIds = new Set((data.test_ids || []).map(String));
+
+                // Re-render all navigation buttons to reflect new state
                 renderPlanButtons();
-                // Re-render main content if visible so its buttons update too
-                const hash = window.location.hash ? window.location.hash.substring(1) : '';
-                if (hash) loadTarget(hash, false);
+
+                // Re-render main content if anything is currently displayed
+                // Always try to refresh the currently displayed target to update buttons
+                if (currentlyDisplayedTarget) {
+                    loadTarget(currentlyDisplayedTarget, false);
+                } else {
+                    // Fallback to using hash if we don't have tracking
+                    const hash = window.location.hash ? window.location.hash.substring(1) : '';
+                    if (hash) {
+                        loadTarget(hash, false);
+                    }
+                }
             })
             .catch(() => showToast('Could not update the plan. Please try again.'));
     }
@@ -226,6 +259,16 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!activePlanId) return '';
         const tIdStr = String(testId);
         const descriptors = planBtnDescriptors(new Set([tIdStr]));
+        return descriptors.map(d =>
+            `<button type="button" class="btn-plan btn-plan-${escapeHtml(d.cssClass)}" data-plan-action="${escapeHtml(d.action)}" data-plan-test-ids="${escapeHtml(JSON.stringify(d.ids))}">${escapeHtml(d.label)}</button>`
+        ).join('');
+    }
+
+    function renderPlanBtnsForTestset(testsetId) {
+        if (!activePlanId) return '';
+        const tsIdStr = String(testsetId);
+        const allIds = testsetTestIds.get(tsIdStr) || new Set();
+        const descriptors = planBtnDescriptors(allIds);
         return descriptors.map(d =>
             `<button type="button" class="btn-plan btn-plan-${escapeHtml(d.cssClass)}" data-plan-action="${escapeHtml(d.action)}" data-plan-test-ids="${escapeHtml(JSON.stringify(d.ids))}">${escapeHtml(d.label)}</button>`
         ).join('');
@@ -283,10 +326,17 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
         }).join('');
 
+        const planBtnsHtml = renderPlanBtnsForTestset(testset.id);
+
         contentRoot.innerHTML = `
             <header class="testset-header-main">
-                <h2>${escapeHtml(suite.name)}: ${escapeHtml(testset.name)}</h2>
-                <p class="muted">${(testset.tests || []).length} test${(testset.tests || []).length === 1 ? '' : 's'}</p>
+                <div class="testset-header-content">
+                    <div class="testset-info">
+                        <h2>${escapeHtml(suite.name)}: ${escapeHtml(testset.name)}</h2>
+                        <p class="muted">${(testset.tests || []).length} test${(testset.tests || []).length === 1 ? '' : 's'}</p>
+                    </div>
+                    ${planBtnsHtml ? `<div class="plan-btns-inline">${planBtnsHtml}</div>` : ''}
+                </div>
             </header>
             ${testsHtml || '<p class="muted">No tests in this testset.</p>'}
         `;
@@ -295,17 +345,21 @@ document.addEventListener('DOMContentLoaded', function() {
         // the makePlanBtn event listeners won't work; use event delegation on contentRoot)
     }
 
-    // Event delegation for plan buttons inside rendered test cards
-    contentRoot && contentRoot.addEventListener('click', function(e) {
-        const btn = e.target.closest('.btn-plan[data-plan-action]');
-        if (!btn) return;
-        e.stopPropagation();
-        try {
-            const action = btn.dataset.planAction;
-            const ids = JSON.parse(btn.dataset.planTestIds || '[]');
-            callPlanApi(action, ids);
-        } catch (_) {}
-    });
+     // Event delegation for plan buttons inside rendered test cards
+    // This handles both testset header buttons and individual test buttons
+    if (contentRoot) {
+        contentRoot.addEventListener('click', function(e) {
+            const btn = e.target.closest('.btn-plan[data-plan-action]');
+            if (!btn) return;
+            e.stopPropagation();
+            e.preventDefault();
+            try {
+                const action = btn.dataset.planAction;
+                const ids = JSON.parse(btn.dataset.planTestIds || '[]');
+                callPlanApi(action, ids);
+            } catch (_) {}
+        });
+    }
 
     // -----------------------------------------------------------------------
     // Navigation
@@ -328,6 +382,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (testWrap) { selectedWrap = { suite: testWrap.suite, testset: testWrap.testset }; selectedTestId = String(testWrap.test.id); }
         }
         if (!selectedWrap) return;
+        currentlyDisplayedTarget = target;  // Track what's being displayed
         renderTestset(selectedWrap);
         setActiveTarget(target);
         if (selectedTestId) {

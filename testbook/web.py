@@ -520,6 +520,7 @@ def create_app() -> Flask:
                 selected_plan_title=_text_value(getattr(selected_plan, "title", ""), ""),
                 active_plan_id=_id_value(getattr(selected_plan, "id", ""), "") if selected_plan else "",
                 active_plan_title=_text_value(getattr(selected_plan, "title", ""), ""),
+                plan_test_ids=list(plan_test_ids),
                 show_sync_button=True,
                 need_sync=not cached_suites,
                 default_base_url=cfg.get("default_base_url", "http://localhost:5004/"),

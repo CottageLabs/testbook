@@ -690,6 +690,24 @@ p {
     padding-bottom: 8px;
 }
 
+.testset-header-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.testset-info {
+    flex: 1;
+}
+
+.plan-btns-inline {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
 .content-panel {
     padding: 24px;
 }
