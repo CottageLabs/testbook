@@ -8,6 +8,7 @@
             </button>
             <span class="suite-name">{{ suite.name }}</span>
             <span class="testset-count">{{ suite.testsets | length }} testset{{ '' if suite.testsets | length == 1 else 's' }}</span>
+            <span class="plan-btn-slot" data-for-suite="{{ suite.id }}"></span>
         </div>
 
         {% if suite.testsets %}
@@ -20,13 +21,15 @@
                     </button>
                     <button class="testset-name nav-link nav-target" type="button" data-target="set/{{ testset.id }}" id="nav-set-{{ testset.id }}">{{ testset.name }}</button>
                     <span class="test-count">{{ testset.tests | length }} test{{ '' if testset.tests | length == 1 else 's' }}</span>
+                    <span class="plan-btn-slot" data-for-testset="{{ testset.id }}"></span>
                 </div>
 
                 {% if testset.tests %}
                 <ul class="test-list testset-content" data-testset-id="{{ testset.id }}">
                     {% for test in testset.tests %}
-                    <li class="test-item">
+                    <li class="test-item" data-test-id="{{ test.id }}">
                         <button class="test-title nav-link nav-target" type="button" data-target="test/{{ test.id }}" data-parent-set-id="{{ testset.id }}" id="nav-test-{{ test.id }}">{{ test.title }}</button>
+                        <span class="plan-btn-slot" data-for-test="{{ test.id }}"></span>
                     </li>
                     {% endfor %}
                 </ul>
@@ -43,4 +46,3 @@
 {% else %}
 <p class="muted">Choose a branch and sync to load its tests into the local cache.</p>
 {% endif %}
-

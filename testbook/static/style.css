@@ -400,7 +400,7 @@ p {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 14px;
+    margin-bottom: 6px;
 }
 
 #plan-select {
@@ -427,6 +427,111 @@ p {
 
 .btn-add-plan:hover {
     opacity: 0.92;
+}
+
+/* Active plan indicator in header */
+.active-plan-indicator {
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.82rem;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 999px;
+    padding: 2px 10px 2px 8px;
+    white-space: nowrap;
+}
+
+.active-plan-label {
+    font-weight: 700;
+    color: var(--accent);
+}
+
+.active-plan-name {
+    color: var(--text);
+    font-weight: 600;
+}
+
+.active-plan-clear {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.8rem;
+    margin-left: 2px;
+    line-height: 1;
+}
+
+.active-plan-clear:hover {
+    color: #b91c1c;
+}
+
+/* Plan edit hint on plans page */
+.plan-edit-hint {
+    margin: 0 0 12px;
+    font-size: 0.85rem;
+}
+
+.plan-edit-link {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.plan-edit-link:hover {
+    text-decoration: underline;
+}
+
+/* Plan add/remove buttons in nav slots */
+.plan-btn-slot {
+    display: inline-flex;
+    gap: 4px;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.btn-plan {
+    padding: 2px 8px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    line-height: 1.4;
+}
+
+.btn-plan-add {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+}
+
+.btn-plan-add:hover {
+    background: #bbf7d0;
+    border-color: #86efac;
+}
+
+.btn-plan-remove {
+    background: #fef2f2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+}
+
+.btn-plan-remove:hover {
+    background: #fecaca;
+    border-color: #fca5a5;
+}
+
+/* Plan buttons in test card header */
+.test-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.plan-btns-inline {
+    display: inline-flex;
+    gap: 4px;
 }
 
 .btn-expand-all:hover,
@@ -635,6 +740,7 @@ p {
     justify-content: space-between;
     gap: 12px;
     margin-bottom: 10px;
+    flex-wrap: wrap;
 }
 
 .test-card h3 {

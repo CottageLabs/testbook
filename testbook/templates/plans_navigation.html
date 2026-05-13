@@ -17,6 +17,11 @@
     <input type="hidden" name="branch" value="{{ selected_branch }}">
     <noscript><button type="submit">Go</button></noscript>
 </form>
+{% if selected_plan_id %}
+<p class="plan-edit-hint">
+    <a class="plan-edit-link" href="{{ url_for('index', branch=selected_branch, plan_id=selected_plan_id) if selected_branch else url_for('index') }}">✏ Add / remove tests in Test Suites</a>
+</p>
+{% endif %}
 {% else %}
 <p class="muted">No plans yet for this branch. Click <strong>Add Plan</strong> to create one.</p>
 {% endif %}

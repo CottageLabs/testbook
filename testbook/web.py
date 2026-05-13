@@ -288,6 +288,9 @@ def _default_render_context() -> dict[str, object]:
         "plans": [],
         "selected_plan_id": None,
         "selected_plan_title": "",
+        "active_plan_id": "",
+        "active_plan_title": "",
+        "plan_test_ids": [],
     }
 
 
@@ -306,6 +309,7 @@ def create_app() -> Flask:
             default_branch = cfg["default_branch"]
             selected_branch = request.args.get("branch", default_branch)
             interval_seconds = max(60, _int_value(cfg.get("freshness_check_interval_seconds", 1800), 1800))
+            active_plan_id_raw = request.args.get("plan_id", "").strip()
 
             session = get_session()
             # Eagerly load nested relationships so they're available after session closes
@@ -334,6 +338,25 @@ def create_app() -> Flask:
                 .filter_by(repo_name=cfg["repo_name"], branch=selected_branch)
                 .first()
             )
+
+            # Resolve active plan
+            active_plan_title = ""
+            plan_test_ids: list[str] = []
+            if active_plan_id_raw:
+                try:
+                    plan_id_int = int(active_plan_id_raw)
+                    active_plan = session.query(TestPlan).filter_by(id=plan_id_int).first()
+                    if active_plan:
+                        active_plan_title = _text_value(getattr(active_plan, "title", ""), "")
+                        items = (
+                            session.query(TestPlanItem)
+                            .filter_by(test_plan_id=plan_id_int)
+                            .all()
+                        )
+                        plan_test_ids = [str(item.test_id) for item in items]
+                except (ValueError, TypeError):
+                    active_plan_id_raw = ""
+
             last_synced_at = _to_utc(getattr(sync_state, "last_synced_at", None))
             session.close()
 
@@ -361,6 +384,9 @@ def create_app() -> Flask:
                     active_nav="suites",
                     branch_form_action="/",
                     return_view="suites",
+                    active_plan_id=active_plan_id_raw,
+                    active_plan_title=active_plan_title,
+                    plan_test_ids=plan_test_ids,
                 )
             else:
                 # No cached data; show sync button
@@ -381,6 +407,9 @@ def create_app() -> Flask:
                     active_nav="suites",
                     branch_form_action="/",
                     return_view="suites",
+                    active_plan_id=active_plan_id_raw,
+                    active_plan_title=active_plan_title,
+                    plan_test_ids=plan_test_ids,
                 )
 
         except ConfigurationError as exc:
@@ -626,6 +655,61 @@ def create_app() -> Flask:
                 last_synced_at_iso=None,
                 last_synced_display="Never",
             )
+
+    @app.route("/api/plan/<int:plan_id>/tests", methods=["GET", "POST"])
+    def plan_tests_api(plan_id: int):
+        """GET: return list of test IDs in the plan.
+        POST {action: "add"|"remove", test_ids: [...]}: modify plan membership.
+        Returns updated list of test IDs.
+        """
+        session = get_session()
+        try:
+            plan = session.query(TestPlan).filter_by(id=plan_id).first()
+            if plan is None:
+                return jsonify({"error": "Plan not found"}), 404
+
+            if request.method == "POST":
+                data = request.get_json(force=True) or {}
+                action = data.get("action", "")
+                raw_ids = data.get("test_ids", [])
+                try:
+                    test_ids_int = [int(t) for t in raw_ids]
+                except (ValueError, TypeError):
+                    return jsonify({"error": "Invalid test_ids"}), 400
+
+                now = datetime.now(timezone.utc)
+                if action == "add":
+                    existing = session.query(TestPlanItem).filter_by(test_plan_id=plan_id).all()
+                    existing_ids = {item.test_id for item in existing}
+                    max_order = max((item.order_index for item in existing), default=-1)
+                    for tid in test_ids_int:
+                        if tid not in existing_ids:
+                            max_order += 1
+                            session.add(TestPlanItem(
+                                test_plan_id=plan_id,
+                                test_id=tid,
+                                order_index=max_order,
+                            ))
+                elif action == "remove":
+                    if test_ids_int:
+                        session.query(TestPlanItem).filter(
+                            TestPlanItem.test_plan_id == plan_id,
+                            TestPlanItem.test_id.in_(test_ids_int),
+                        ).delete(synchronize_session=False)
+                else:
+                    return jsonify({"error": "action must be 'add' or 'remove'"}), 400
+
+                plan.updated_at = now
+                session.commit()
+
+            # Return current state
+            items = session.query(TestPlanItem).filter_by(test_plan_id=plan_id).all()
+            return jsonify({
+                "plan_id": plan_id,
+                "test_ids": [item.test_id for item in items],
+            })
+        finally:
+            session.close()
 
     return app
 

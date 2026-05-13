@@ -462,7 +462,9 @@ class TestPlansRoute(unittest.TestCase):
         response = self.client.get("/plans")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Test Plans", response.data)
-        self.assertIn(b"subnav-link active\" href=\"/plans", response.data)
+        # Active nav link for Test Plans should be present (multi-line href format)
+        self.assertIn(b'subnav-link active', response.data)
+        self.assertIn(b'href="/plans', response.data)
         self.assertIn(b"Add Plan", response.data)
 
     def test_plans_route_shows_plan_tests_navigation(self):

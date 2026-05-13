@@ -31,12 +31,22 @@
                         <option value="{{ branch }}" {% if branch == selected_branch %}selected{% endif %}>{{ branch }}</option>
                         {% endfor %}
                     </select>
+                    {% if active_plan_id %}
+                    <input type="hidden" name="plan_id" value="{{ active_plan_id }}">
+                    {% endif %}
                     {% block branch_form_hidden %}{% endblock %}
                     <p class="branch-sync-inline">
                         <span id="last-synced-label" class="branch-sync-meta">Last synced: {{ last_synced_display }}</span>
                         <span class="branch-sync-sep">|</span>
                         <span id="freshness-status-label" class="branch-sync-status is-checking">Status: Checking freshness...</span>
                     </p>
+                    {% if active_plan_id %}
+                    <p class="active-plan-indicator">
+                        <span class="active-plan-label">Plan:</span>
+                        <span class="active-plan-name">{{ active_plan_title or 'Plan #' ~ active_plan_id }}</span>
+                        <a class="active-plan-clear" href="{{ url_for('index', branch=selected_branch) if selected_branch else url_for('index') }}" title="Exit plan context">✕</a>
+                    </p>
+                    {% endif %}
                     <noscript><button type="submit">Go</button></noscript>
                 </form>
 
@@ -53,8 +63,10 @@
         </div>
 
         <nav class="app-subnav" aria-label="Workbench sections">
-            <a class="subnav-link {% if active_nav == 'suites' %}active{% endif %}" href="{{ url_for('index', branch=selected_branch) if selected_branch else url_for('index') }}">Test Suites</a>
-            <a class="subnav-link {% if active_nav == 'plans' %}active{% endif %}" href="{{ url_for('plans_index', branch=selected_branch) if selected_branch else url_for('plans_index') }}">Test Plans</a>
+            <a class="subnav-link {% if active_nav == 'suites' %}active{% endif %}"
+               href="{% if selected_branch and active_plan_id %}{{ url_for('index', branch=selected_branch, plan_id=active_plan_id) }}{% elif selected_branch %}{{ url_for('index', branch=selected_branch) }}{% else %}{{ url_for('index') }}{% endif %}">Test Suites</a>
+            <a class="subnav-link {% if active_nav == 'plans' %}active{% endif %}"
+               href="{% if selected_branch and active_plan_id %}{{ url_for('plans_index', branch=selected_branch, plan_id=active_plan_id) }}{% elif selected_branch %}{{ url_for('plans_index', branch=selected_branch) }}{% else %}{{ url_for('plans_index') }}{% endif %}">Test Plans</a>
             <a class="subnav-link" href="#">Executions</a>
         </nav>
     </header>
@@ -94,4 +106,3 @@
 {% block page_scripts %}{% endblock %}
 </body>
 </html>
-
