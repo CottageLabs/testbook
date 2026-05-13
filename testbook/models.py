@@ -283,3 +283,78 @@ class TestDependency(Base):
         if self.dep_test_title:
             dep_str += f"/{self.dep_test_title}"
         return f"<TestDependency {self.dependent_test.title!r} → {dep_str}>"
+
+
+# ---------------------------------------------------------------------------
+# Test Plan models
+# ---------------------------------------------------------------------------
+
+
+class TestPlan(Base):
+	"""Represents a test plan — a named list of tests to run for a feature.
+
+	A test plan belongs to a specific repo and branch, and contains an ordered
+	list of tests selected from any suite/testset available on that branch.
+
+	Attributes
+	----------
+	id : int
+		Primary key.
+	title : str
+		The name of the test plan (e.g., "Login Feature Tests").
+	repo_name : str
+		GitHub repo in "owner/repo" format.
+	branch : str
+		Branch name in the repo (e.g., "main", "develop").
+	created_at : DateTime
+		When the plan was created.
+	updated_at : DateTime
+		When the plan was last modified.
+	"""
+
+	__tablename__ = "test_plan"
+	__allow_unmapped__ = True
+
+	id = Column(Integer, primary_key=True)
+	title = Column(String(255), nullable=False)
+	repo_name = Column(String(255), nullable=False, index=True)
+	branch = Column(String(255), nullable=False, index=True)
+	created_at = Column(DateTime(timezone=True), nullable=False)
+	updated_at = Column(DateTime(timezone=True), nullable=False)
+
+	plan_items = relationship(
+		"TestPlanItem", back_populates="test_plan", cascade="all, delete-orphan"
+	)
+
+	def __repr__(self) -> str:
+		return f"<TestPlan {self.title!r} on {self.repo_name}:{self.branch}>"
+
+
+class TestPlanItem(Base):
+	"""Represents a test included in a test plan.
+
+	Attributes
+	----------
+	id : int
+		Primary key.
+	test_plan_id : int
+		Foreign key to the parent `TestPlan`.
+	test_id : int
+		Foreign key to the `Test` being added to the plan.
+	order_index : int
+		Order of this test within the plan (for consistent ordering).
+	"""
+
+	__tablename__ = "test_plan_item"
+	__allow_unmapped__ = True
+
+	id = Column(Integer, primary_key=True)
+	test_plan_id = Column(Integer, ForeignKey("test_plan.id"), nullable=False, index=True)
+	test_id = Column(Integer, ForeignKey("test.id"), nullable=False, index=True)
+	order_index = Column(Integer, default=0)
+
+	test_plan = relationship("TestPlan", back_populates="plan_items")
+	test = relationship("Test")
+
+	def __repr__(self) -> str:
+		return f"<TestPlanItem {self.test.title!r} in plan {self.test_plan.title!r}>"

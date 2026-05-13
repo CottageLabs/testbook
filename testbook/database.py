@@ -27,6 +27,8 @@ from testbook.models import (
     BranchSyncState,
     TestDependency,
     TestSet,
+    TestPlan,
+    TestPlanItem,
 )
 
 # Module-level engine and session factory (lazy-initialized).
