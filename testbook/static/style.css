@@ -162,7 +162,7 @@ p {
 
 .app-body {
     display: grid;
-    grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
+    grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
     gap: 0;
     flex: 1;
     min-height: 0;
@@ -194,20 +194,47 @@ p {
     border: 0;
     box-shadow: none;
     background: transparent;
-    padding: 20px;
+    padding: 12px 14px;
 }
 
 .panel-title-row {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 16px;
+    margin-bottom: 10px;
 }
 
 .panel-title-row h2,
 .content-panel h2,
 .panel--error h2 {
     margin: 0;
+}
+
+.nav-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-left: auto;
+}
+
+.btn-expand-all,
+.btn-collapse-all {
+    background: none;
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text);
+    transition: all 0.2s ease;
+}
+
+.btn-expand-all:hover,
+.btn-collapse-all:hover {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
 }
 
 .content-panel {
@@ -261,7 +288,7 @@ p {
 .suite-item {
     border: 1px solid var(--border);
     border-radius: 10px;
-    margin-bottom: 14px;
+    margin-bottom: 8px;
     overflow: hidden;
     background: var(--surface);
 }
@@ -271,7 +298,7 @@ p {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 11px 12px;
+    padding: 8px 10px;
 }
 
 .suite-header {
@@ -342,7 +369,7 @@ p {
 .test-list {
     list-style: none;
     margin: 0;
-    padding: 10px 14px 12px 36px;
+    padding: 6px 12px 8px 32px;
     background: #fff;
 }
 
@@ -351,7 +378,7 @@ p {
 }
 
 .test-item {
-    padding: 7px 0;
+    padding: 4px 0;
     border-bottom: 1px solid #f0f0f0;
 }
 

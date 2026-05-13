@@ -17,6 +17,8 @@ testbook.init = function(structure) {
     $(".add-remove-all").on("click.AddRemoveAll", testbook.toggleAddRemoveAll);
     $(".clear-selected").on("click.ClearSelected", testbook.clearSelected);
     $(".download-selection").on("click.DownloadSelection", testbook.downloadSelection);
+    $(".btn-expand-all").on("click.ExpandAll", testbook.expandAll);
+    $(".btn-collapse-all").on("click.CollapseAll", testbook.collapseAll);
 
     let selected = window.localStorage.getItem("selected")
     if (!selected) {
@@ -40,6 +42,17 @@ testbook.toggleNav = function(event) {
     let el = $(event.target);
     let sublist = el.parent().find("> ul");
     sublist.slideToggle();
+}
+
+testbook.expandAll = function(event) {
+    event.preventDefault();
+    $(".navigation ul").show();
+}
+
+testbook.collapseAll = function(event) {
+    event.preventDefault();
+    // Don't collapse the top-level list, just the nested ones
+    $(".navigation li > ul").hide();
 }
 
 testbook.navClick = function(event) {

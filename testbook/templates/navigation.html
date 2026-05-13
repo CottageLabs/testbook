@@ -1,0 +1,58 @@
+<div class="panel-title-row">
+    <h2>Test Suites</h2>
+    {% if suites %}
+    <div class="nav-controls">
+        <button class="btn-expand-all" type="button" title="Expand all">▼</button>
+        <button class="btn-collapse-all" type="button" title="Collapse all">▶</button>
+        <span class="badge">{{ suites | length }}</span>
+    </div>
+    {% endif %}
+</div>
+
+{% if suites %}
+<ul class="suite-list">
+    {% for suite in suites %}
+    <li class="suite-item" data-suite-id="{{ suite.id }}">
+        <div class="suite-header">
+            <button class="toggle-btn" type="button" aria-expanded="true" aria-label="Toggle suite">
+                <span class="toggle-icon">▼</span>
+            </button>
+            <span class="suite-name">{{ suite.name }}</span>
+            <span class="testset-count">{{ suite.testsets | length }} testset{{ '' if suite.testsets | length == 1 else 's' }}</span>
+        </div>
+
+        {% if suite.testsets %}
+        <ul class="testset-list suite-content" data-suite-id="{{ suite.id }}">
+            {% for testset in suite.testsets %}
+            <li class="testset-item" data-testset-id="{{ testset.id }}">
+                <div class="testset-header">
+                    <button class="toggle-btn" type="button" aria-expanded="true" aria-label="Toggle testset">
+                        <span class="toggle-icon">▼</span>
+                    </button>
+                    <span class="testset-name">{{ testset.name }}</span>
+                    <span class="test-count">{{ testset.tests | length }} test{{ '' if testset.tests | length == 1 else 's' }}</span>
+                </div>
+
+                {% if testset.tests %}
+                <ul class="test-list testset-content" data-testset-id="{{ testset.id }}">
+                    {% for test in testset.tests %}
+                    <li class="test-item">
+                        <span class="test-title">{{ test.title }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </li>
+    {% endfor %}
+</ul>
+{% elif not need_sync %}
+<p class="muted">No tests synced for <strong>{{ selected_branch }}</strong> yet. Click "Sync Tests" to load them.</p>
+{% else %}
+<p class="muted">Choose a branch and sync to load its tests into the local cache.</p>
+{% endif %}
+
+
