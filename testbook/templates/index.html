@@ -37,6 +37,15 @@
             </div>
         </div>
 
+        <div class="app-base-url-controls">
+            <div class="base-url-form">
+                <label for="base-url-input" class="base-url-label">Base URL</label>
+                <input type="url" id="base-url-input" class="base-url-input" placeholder="e.g., http://localhost:5004/">
+                <button id="base-url-save-btn" class="btn btn-base-url" type="button">Save</button>
+                <button id="base-url-reset-btn" class="btn btn-base-url-reset" type="button">Reset to Default</button>
+            </div>
+        </div>
+
         <nav class="app-subnav" aria-label="Workbench sections">
             <a class="subnav-link active" href="#">Test Suites</a>
             <a class="subnav-link" href="#">Test Plans</a>
@@ -71,12 +80,69 @@
 </div>
 
 <script id="suite-data" type="application/json">{{ suite_payload|tojson }}</script>
+<script id="default-base-url" type="application/json">{{ default_base_url|tojson }}</script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const suiteDataNode = document.getElementById('suite-data');
         const suiteData = suiteDataNode ? JSON.parse(suiteDataNode.textContent || '[]') : [];
+        const defaultBaseUrlNode = document.getElementById('default-base-url');
+        const defaultBaseUrl = defaultBaseUrlNode ? JSON.parse(defaultBaseUrlNode.textContent || '"http://localhost:5004/"') : "http://localhost:5004/";
         const contentRoot = document.getElementById('test-content-root');
         const appMain = document.querySelector('.app-main');
+
+        // Base URL management
+        const baseUrlInput = document.getElementById('base-url-input');
+        const baseUrlSaveBtn = document.getElementById('base-url-save-btn');
+        const baseUrlResetBtn = document.getElementById('base-url-reset-btn');
+
+        function getStoredBaseUrl() {
+            return window.localStorage.getItem('testbook_base_url');
+        }
+
+        function setStoredBaseUrl(url) {
+            window.localStorage.setItem('testbook_base_url', url);
+        }
+
+        function getCurrentBaseUrl() {
+            const stored = getStoredBaseUrl();
+            return stored || defaultBaseUrl;
+        }
+
+        function updateBaseUrlInput() {
+            baseUrlInput.value = getCurrentBaseUrl();
+        }
+
+        function refreshTests() {
+            // Re-render the current view with updated base URL
+            const hash = window.location.hash ? window.location.hash.substring(1) : '';
+            if (hash) {
+                loadTarget(hash, false);
+            }
+        }
+
+        // Initialize base URL input
+        updateBaseUrlInput();
+
+        baseUrlSaveBtn.addEventListener('click', function() {
+            const newUrl = baseUrlInput.value.trim();
+            if (newUrl) {
+                setStoredBaseUrl(newUrl);
+                refreshTests();
+            }
+        });
+
+        baseUrlResetBtn.addEventListener('click', function() {
+            window.localStorage.removeItem('testbook_base_url');
+            updateBaseUrlInput();
+            refreshTests();
+        });
+
+        // Allow Enter key to save
+        baseUrlInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                baseUrlSaveBtn.click();
+            }
+        });
 
         function escapeHtml(text) {
             return String(text)
@@ -105,6 +171,8 @@
                 return;
             }
 
+            const currentBaseUrl = getCurrentBaseUrl();
+
             const testsHtml = (testset.tests || []).map((test, testIdx) => {
                 const contextEntries = Object.entries(test.context || {});
                 const contextHtml = contextEntries.length
@@ -117,8 +185,16 @@
                     const resultsHtml = (step.results || []).length
                         ? `<div class="step-results"><h5>Expected results</h5><ul>${step.results.map(result => `<li>${escapeHtml(result)}</li>`).join('')}</ul></div>`
                         : '';
+
+                    // Build path link
+                    let pathHtml = '';
+                    if (step.path) {
+                        const pathUrl = currentBaseUrl.replace(/\/$/, '') + '/' + step.path.replace(/^\//, '');
+                        pathHtml = `<div class="step-link"><strong>Path:</strong> <a href="${escapeHtml(pathUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(step.path)}</a></div>`;
+                    }
+
                     const linksHtml = [
-                        step.path ? `<div class="step-link"><strong>Path:</strong> ${escapeHtml(step.path)}</div>` : '',
+                        pathHtml,
                         step.resource
                             ? `<div class="step-link"><strong>Resource:</strong> ${step.resource_url ? `<a href="${escapeHtml(step.resource_url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(step.resource)}</a>` : escapeHtml(step.resource)}</div>`
                             : ''

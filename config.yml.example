@@ -10,6 +10,10 @@ source_repo:
   tests_path: "testbook"
   resources_path: "testbook/resources"
   default_branch: "main"
+  # Base URL to the application being tested.
+  # This is used to create clickable links from test steps that have a "path" element.
+  # Users can override this at runtime via the UI (persisted in browser localStorage).
+  default_base_url: "http://localhost:5004/"
   # Leave blank and set TESTBOOK_SOURCE_TOKEN env var instead for production:
   github_token: ""
 

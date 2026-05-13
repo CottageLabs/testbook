@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, jsonify
 from sqlalchemy.orm import joinedload
 from urllib.parse import quote
 
@@ -231,6 +231,7 @@ def create_app() -> Flask:
                     suite_payload=suite_payload,
                     error=None,
                     show_sync_button=True,
+                    default_base_url=cfg.get("default_base_url", "http://localhost:5004/"),
                 )
             else:
                 # No cached data; show sync button
@@ -244,6 +245,7 @@ def create_app() -> Flask:
                     error=None,
                     show_sync_button=True,
                     need_sync=True,
+                    default_base_url=cfg.get("default_base_url", "http://localhost:5004/"),
                 )
 
         except ConfigurationError as exc:
@@ -257,6 +259,7 @@ def create_app() -> Flask:
                 suite_payload=[],
                 show_sync_button=False,
                 need_sync=False,
+                default_base_url="http://localhost:5004/",
             )
         except Exception as exc:
             return render_template(
@@ -269,7 +272,17 @@ def create_app() -> Flask:
                 suite_payload=[],
                 show_sync_button=False,
                 need_sync=False,
+                default_base_url="http://localhost:5004/",
             )
+
+    @app.get("/api/default-base-url")
+    def get_default_base_url() -> dict:
+        """Return the configured default base URL for the application being tested."""
+        try:
+            cfg = get_source_repo_config()
+            return jsonify({"default_base_url": cfg.get("default_base_url", "http://localhost:5004/")})
+        except Exception:
+            return jsonify({"default_base_url": "http://localhost:5004/"})
 
     @app.post("/sync")
     def sync() -> str:

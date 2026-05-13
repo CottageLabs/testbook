@@ -64,6 +64,10 @@ p {
     padding: 18px 24px 14px;
 }
 
+.app-base-url-controls {
+    padding: 0 24px 14px;
+}
+
 .app-brand h1 {
     margin: 0;
     font-size: 1.35rem;
@@ -107,6 +111,70 @@ p {
     background: var(--surface-alt);
     color: var(--text);
     cursor: pointer;
+}
+
+.base-url-form {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.base-url-label {
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+}
+
+.base-url-input {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    background: var(--surface-alt);
+    color: var(--text);
+    min-width: 250px;
+}
+
+.base-url-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: var(--surface);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.btn-base-url,
+.btn-base-url-reset {
+    display: inline-block;
+    padding: 8px 14px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.btn-base-url {
+    background: var(--accent);
+    color: #fff;
+}
+
+.btn-base-url:hover {
+    opacity: 0.92;
+}
+
+.btn-base-url-reset {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+}
+
+.btn-base-url-reset:hover {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: var(--accent);
 }
 
 .sync-form {
@@ -497,6 +565,15 @@ p {
 .step-link {
     margin-left: 18px;
     font-size: 0.9rem;
+}
+
+.step-link a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.step-link a:hover {
+    text-decoration: underline;
 }
 
 ul {

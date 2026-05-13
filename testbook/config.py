@@ -110,6 +110,7 @@ def get_source_repo_config() -> dict[str, Any]:
         "tests_path": section.get("tests_path", "testbook"),
         "resources_path": section.get("resources_path", ""),
         "default_branch": section.get("default_branch", "main"),
+        "default_base_url": section.get("default_base_url", "http://localhost:5004/"),
         "github_token": token,
     }
 
