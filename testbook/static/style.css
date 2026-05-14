@@ -568,6 +568,12 @@ p {
     justify-self: start;
 }
 
+/* Executions sidebar variant of active plan pill */
+.exec-active-plan-indicator {
+    margin: 0 0 10px;
+    max-width: 100%;
+}
+
 .active-plan-label {
     font-weight: 700;
     color: var(--accent);
@@ -1395,4 +1401,3 @@ ul {
          padding-left: 8px;
      }
 }
-

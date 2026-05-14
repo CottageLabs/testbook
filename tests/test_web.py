@@ -723,6 +723,26 @@ class TestExecutionsRoute(unittest.TestCase):
         data = response.get_json()
         self.assertEqual(data["title"], "Cycle 1 - Retest")
 
+    def test_executions_route_displays_active_plan_in_sidebar(self):
+        session_instance = MagicMock()
+        sync_query = MagicMock()
+        sync_query.filter_by.return_value.first.return_value = None
+
+        plan = SimpleNamespace(id=7, title="Smoke Plan", plan_items=[])
+        plans_query = MagicMock()
+        plans_query.options.return_value.filter_by.return_value.order_by.return_value.all.return_value = [plan]
+
+        executions_query = MagicMock()
+        executions_query.options.return_value.filter_by.return_value.order_by.return_value.all.return_value = []
+
+        session_instance.query.side_effect = [sync_query, plans_query, executions_query]
+        self.session_mock_obj.return_value = session_instance
+
+        response = self.client.get("/executions?plan_id=7")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Executing plan:", response.data)
+        self.assertIn(b"Smoke Plan", response.data)
+
 
 if __name__ == "__main__":
     unittest.main()

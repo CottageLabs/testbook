@@ -4,6 +4,13 @@
     <button type="button" id="add-execution-btn" class="btn btn-add-plan"{% if not active_plan_id %} disabled title="Select a plan in the header first"{% endif %}>+ Add Execution</button>
 </div>
 
+{% if active_plan_title %}
+<p class="active-plan-indicator exec-active-plan-indicator">
+    <span class="active-plan-label">Executing plan:</span>
+    <span class="active-plan-name">{{ active_plan_title }}</span>
+</p>
+{% endif %}
+
 {% if not active_plan_id %}
 <p class="muted">Select an active plan from the header to create an execution snapshot.</p>
 {% endif %}
@@ -58,5 +65,3 @@
 {% set empty_state_message = 'This execution does not contain any tests yet.' %}
 {% include("_suite_tree.html") %}
 {% endif %}
-
-
