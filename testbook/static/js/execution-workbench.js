@@ -1,0 +1,526 @@
+/**
+ * Execution Workbench
+ *
+ * Renders interactive test execution panels with:
+ * - Pass/Fail buttons for each result
+ * - Comment fields for steps and results
+ * - Test-wide pass/fail buttons with smart state management
+ * - Real-time AJAX saving
+ */
+
+document.addEventListener('DOMContentLoaded', function() {
+    // -----------------------------------------------------------------------
+    // Page data
+    // -----------------------------------------------------------------------
+    const suiteDataNode = document.getElementById('suite-data');
+    const suiteData = suiteDataNode ? JSON.parse(suiteDataNode.textContent || '[]') : [];
+    const defaultBaseUrlNode = document.getElementById('default-base-url');
+    const defaultBaseUrl = defaultBaseUrlNode ? JSON.parse(defaultBaseUrlNode.textContent || '"http://localhost:5004/"') : 'http://localhost:5004/';
+    const selectedBranchNode = document.getElementById('selected-branch');
+    const selectedBranch = selectedBranchNode ? JSON.parse(selectedBranchNode.textContent || '""') : '';
+
+    const contentRoot = document.getElementById('test-content-root');
+    const appMain = document.querySelector('.app-main');
+
+    // -----------------------------------------------------------------------
+    // Utilities
+    // -----------------------------------------------------------------------
+    function escapeHtml(text) {
+        return String(text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    // -----------------------------------------------------------------------
+    // Execution state management
+    // -----------------------------------------------------------------------
+    const executionStateMap = new Map(); // resultId -> {status: 'pass'|'fail'|'pending', comment: string}
+    const executionStepComments = new Map(); // stepId -> comment string
+    const executionTestState = new Map(); // testId -> {status: 'pass'|'fail'|'pending', comment: string}
+
+    function getResultState(resultId) {
+        return executionStateMap.get(String(resultId)) || { status: 'pending', comment: '' };
+    }
+
+    function setResultState(resultId, status, comment) {
+        const rId = String(resultId);
+        executionStateMap.set(rId, { status, comment });
+    }
+
+    function getStepComment(stepId) {
+        return executionStepComments.get(String(stepId)) || '';
+    }
+
+    function setStepComment(stepId, comment) {
+        executionStepComments.set(String(stepId), comment);
+    }
+
+    // -----------------------------------------------------------------------
+    // API calls
+    // -----------------------------------------------------------------------
+    function saveResultStatus(resultId, status, comment) {
+        const payload = {
+            status: status,
+            comment: comment || ''
+        };
+        return fetch(`/api/execution-result/${encodeURIComponent(resultId)}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).then(r => {
+            if (!r.ok) return Promise.reject(r);
+            return r.json();
+        }).catch(err => {
+            console.error('Failed to save result status:', err);
+            return null;
+        });
+    }
+
+    function saveStepComment(stepId, comment) {
+        const payload = { comment: comment || '' };
+        return fetch(`/api/execution-step/${encodeURIComponent(stepId)}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).then(r => {
+            if (!r.ok) return Promise.reject(r);
+            return r.json();
+        }).catch(err => {
+            console.error('Failed to save step comment:', err);
+            return null;
+        });
+    }
+
+    function saveTestStatus(testId, status, comment) {
+        const payload = {
+            status: status,
+            comment: comment || ''
+        };
+        return fetch(`/api/execution-test/${encodeURIComponent(testId)}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).then(r => {
+            if (!r.ok) return Promise.reject(r);
+            return r.json();
+        }).catch(err => {
+            console.error('Failed to save test status:', err);
+            return null;
+        });
+    }
+
+    // -----------------------------------------------------------------------
+    // Test rendering
+    // -----------------------------------------------------------------------
+    function renderTestset(testsetWrap) {
+        const testset = testsetWrap.testset;
+        const suite = testsetWrap.suite;
+        if (!contentRoot) return;
+
+        const currentBaseUrl = getCurrentBaseUrl();
+
+        // Load initial state from payload
+        executionStateMap.clear();
+        executionStepComments.clear();
+        executionTestState.clear();
+
+        (testset.tests || []).forEach(test => {
+            if (test.id) {
+                executionTestState.set(String(test.id), {
+                    status: test.status || 'pending',
+                    comment: test.comment || ''
+                });
+            }
+            (test.steps || []).forEach(step => {
+                if (step.id) {
+                    executionStepComments.set(String(step.id), step.comment || '');
+                }
+                (step.results || []).forEach(result => {
+                    if (result.id) {
+                        executionStateMap.set(String(result.id), {
+                            status: result.status || 'pending',
+                            comment: result.comment || ''
+                        });
+                    }
+                });
+            });
+        });
+
+        const testsHtml = (testset.tests || []).map((test, testIdx) => {
+            const testId = String(test.id);
+            const contextEntries = Object.entries(test.context || {});
+
+            // Context section
+            const contextHtml = contextEntries.length
+                ? `<div class="exec-test-context">
+                    <h4>Context</h4>
+                    <ul>${contextEntries.map(([k, v]) => `<li><strong>${escapeHtml(k)}:</strong> ${escapeHtml(v)}</li>`).join('')}</ul>
+                   </div>`
+                : '';
+
+            // Setup section
+            const setupHtml = (test.setup || []).length
+                ? `<div class="exec-test-setup">
+                    <h4>Setup</h4>
+                    <ul>${test.setup.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+                   </div>`
+                : '';
+
+            // Steps and results in tabular form
+            const stepsHtml = (test.steps || []).map((step, stepIdx) => {
+                const stepId = String(step.id);
+                const results = (step.results || []);
+
+                // Step header with path/resource links
+                let pathHtml = '';
+                if (step.path) {
+                    const pathUrl = currentBaseUrl.replace(/\/$/, '') + '/' + step.path.replace(/^\//, '');
+                    pathHtml = `<div class="exec-step-link"><strong>Path:</strong> <a href="${escapeHtml(pathUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(step.path)}</a></div>`;
+                }
+                const resourceHtml = step.resource ? `<div class="exec-step-link"><strong>Resource:</strong> ${step.resource_url ? `<a href="${escapeHtml(step.resource_url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(step.resource)}</a>` : escapeHtml(step.resource)}</div>` : '';
+
+                const linksHtml = [pathHtml, resourceHtml].join('');
+
+                // Results table
+                const resultsTableHtml = (results && results.length > 0)
+                    ? `<div class="exec-results-section">
+                        <h5>Expected Results</h5>
+                        <table class="exec-results-table">
+                            <tbody>
+                                ${results.map((result, resultIdx) => {
+                                    const resultId = String(result.id);
+                                    const resultText = typeof result === 'string' ? result : String(result.text || '');
+                                    const state = getResultState(resultId);
+                                    const commentOpen = state.comment ? 'comment-open' : '';
+                                    return `
+                                        <tr class="exec-result-row ${commentOpen}" data-result-id="${escapeHtml(resultId)}">
+                                            <td class="exec-result-text">${escapeHtml(resultText)}</td>
+                                            <td class="exec-result-actions">
+                                                <button type="button" class="btn-result btn-result-pass ${state.status === 'pass' ? 'is-active' : ''}" 
+                                                        data-result-id="${escapeHtml(resultId)}" title="Mark as Pass">✓</button>
+                                                <button type="button" class="btn-result btn-result-fail ${state.status === 'fail' ? 'is-active' : ''}" 
+                                                        data-result-id="${escapeHtml(resultId)}" title="Mark as Fail">✗</button>
+                                                <button type="button" class="btn-result-comment ${state.comment ? 'has-comment' : ''}" 
+                                                        data-result-id="${escapeHtml(resultId)}" data-step-id="${escapeHtml(stepId)}" title="Comment">💬</button>
+                                            </td>
+                                        </tr>
+                                        <tr class="exec-result-comment-row ${state.comment ? 'is-visible' : ''}" data-result-id="${escapeHtml(resultId)}">
+                                            <td colspan="2">
+                                                <textarea class="exec-result-comment-box" placeholder="Add a comment..." data-result-id="${escapeHtml(resultId)}">${escapeHtml(state.comment)}</textarea>
+                                            </td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>`
+                    : '';
+
+                // Step comment section
+                const stepComment = getStepComment(stepId);
+                const stepCommentHtml = `
+                    <div class="exec-step-comment-section">
+                        <div class="exec-step-comment-header">
+                            <button type="button" class="btn-step-comment-toggle" data-step-id="${escapeHtml(stepId)}">
+                                <span class="toggle-icon">${stepComment ? '−' : '+'}</span> Step Comment
+                            </button>
+                        </div>
+                        <textarea class="exec-step-comment-box ${stepComment ? '' : 'is-collapsed'}" placeholder="Add a step comment..." data-step-id="${escapeHtml(stepId)}">${escapeHtml(stepComment)}</textarea>
+                    </div>
+                `;
+
+                return `
+                    <div class="exec-step-block" data-step-id="${escapeHtml(stepId)}">
+                        <div class="exec-step-header">
+                            <span class="exec-step-number">Step ${stepIdx + 1}</span>
+                            <span class="exec-step-text">${escapeHtml(step.text || '')}</span>
+                        </div>
+                        ${linksHtml}
+                        ${resultsTableHtml}
+                        ${stepCommentHtml}
+                    </div>
+                `;
+            }).join('');
+
+            // Test-wide pass/fail buttons
+            // Determine if any result is fail
+            const testResults = (test.steps || []).flatMap(step => step.results || []);
+            const hasFailResult = testResults.some(r => getResultState(String(r.id)).status === 'fail');
+            const hasAnyStatus = testResults.some(r => getResultState(String(r.id)).status !== 'pending');
+            const testStateData = executionTestState.get(String(testId)) || { status: 'pending', comment: '' };
+            const testIsPass = testStateData.status === 'pass';
+            const testIsFail = testStateData.status === 'fail' || hasFailResult; // Auto-fail if any result failed
+
+            const testStatusBtnsHtml = `
+                <div class="exec-test-status-section">
+                    <div class="exec-test-status-label">Test Result:</div>
+                    <button type="button" class="btn-test-status btn-test-pass ${hasFailResult ? 'is-disabled' : ''} ${testIsPass && !hasFailResult ? 'is-active' : ''}" 
+                            data-test-id="${escapeHtml(testId)}" 
+                            title="${hasFailResult ? 'Disable because test has failing results' : 'Mark entire test as Pass'}"
+                            ${hasFailResult ? 'disabled' : ''}>
+                        Pass
+                    </button>
+                    <button type="button" class="btn-test-status btn-test-fail ${testIsFail ? 'is-active' : ''}" 
+                            data-test-id="${escapeHtml(testId)}"
+                            title="Mark entire test as Fail">
+                        Fail
+                    </button>
+                </div>
+            `;
+
+            // Test comment section
+            const testCommentHtml = `
+                <div class="exec-test-comment-section">
+                    <h4>Test Comment</h4>
+                    <textarea class="exec-test-comment-box" placeholder="Add a comment for the entire test..." data-test-id="${escapeHtml(testId)}">${escapeHtml(testStateData.comment)}</textarea>
+                </div>
+            `;
+
+            return `
+                <article class="exec-test-card" id="exec-test-${escapeHtml(testId)}" data-test-id="${escapeHtml(testId)}">
+                    <div class="exec-test-card-header">
+                        <h3>${testIdx + 1}. ${escapeHtml(test.title)}</h3>
+                    </div>
+                    ${contextHtml}
+                    ${setupHtml}
+                    <div class="exec-test-steps">
+                        ${stepsHtml}
+                    </div>
+                    ${testStatusBtnsHtml}
+                    ${testCommentHtml}
+                </article>
+            `;
+        }).join('');
+
+        contentRoot.innerHTML = `
+            <header class="exec-testset-header-main">
+                <div class="exec-testset-header-content">
+                    <div class="exec-testset-info">
+                        <h2>${escapeHtml(suite.name)}: ${escapeHtml(testset.name)}</h2>
+                        <p class="muted">${(testset.tests || []).length} test${(testset.tests || []).length === 1 ? '' : 's'}</p>
+                    </div>
+                </div>
+            </header>
+            ${testsHtml || '<p class="muted">No tests in this testset.</p>'}
+        `;
+
+        // Wire up event handlers
+        attachExecutionEventHandlers();
+    }
+
+    // -----------------------------------------------------------------------
+    // Event handlers
+    // -----------------------------------------------------------------------
+    function attachExecutionEventHandlers() {
+        if (!contentRoot) return;
+
+        // Result pass/fail buttons
+        contentRoot.querySelectorAll('.btn-result-pass').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const resultId = this.dataset.resultId;
+                const state = getResultState(resultId);
+                const newStatus = state.status === 'pass' ? 'pending' : 'pass';
+                setResultState(resultId, newStatus, state.comment);
+                updateResultButtonDisplay(resultId);
+                saveResultStatus(resultId, newStatus, state.comment);
+            });
+        });
+
+        contentRoot.querySelectorAll('.btn-result-fail').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const resultId = this.dataset.resultId;
+                const state = getResultState(resultId);
+                const newStatus = state.status === 'fail' ? 'pending' : 'fail';
+                setResultState(resultId, newStatus, state.comment);
+                updateResultButtonDisplay(resultId);
+                if (newStatus === 'fail') {
+                    // Auto-open comment box
+                    const commentRow = contentRoot.querySelector(`.exec-result-comment-row[data-result-id="${resultId}"]`);
+                    if (commentRow) commentRow.classList.add('is-visible');
+                }
+                saveResultStatus(resultId, newStatus, state.comment);
+            });
+        });
+
+        // Result comment toggle buttons
+        contentRoot.querySelectorAll('.btn-result-comment').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const resultId = this.dataset.resultId;
+                const commentRow = contentRoot.querySelector(`.exec-result-comment-row[data-result-id="${resultId}"]`);
+                if (commentRow) {
+                    commentRow.classList.toggle('is-visible');
+                }
+            });
+        });
+
+        // Result comment text areas
+        contentRoot.querySelectorAll('.exec-result-comment-box').forEach(textarea => {
+            textarea.addEventListener('change', function() {
+                const resultId = this.dataset.resultId;
+                const state = getResultState(resultId);
+                const comment = this.value;
+                setResultState(resultId, state.status, comment);
+                updateResultCommentButton(resultId);
+                saveResultStatus(resultId, state.status, comment);
+            });
+        });
+
+        // Step comment toggle buttons
+        contentRoot.querySelectorAll('.btn-step-comment-toggle').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const stepId = this.dataset.stepId;
+                const stepBlock = contentRoot.querySelector(`.exec-step-block[data-step-id="${stepId}"]`);
+                if (stepBlock) {
+                    const commentBox = stepBlock.querySelector('.exec-step-comment-box');
+                    if (commentBox) {
+                        commentBox.classList.toggle('is-collapsed');
+                        const icon = this.querySelector('.toggle-icon');
+                        if (icon) icon.textContent = commentBox.classList.contains('is-collapsed') ? '+' : '−';
+                    }
+                }
+            });
+        });
+
+        // Step comment text areas
+        contentRoot.querySelectorAll('.exec-step-comment-box').forEach(textarea => {
+            textarea.addEventListener('change', function() {
+                const stepId = this.dataset.stepId;
+                const comment = this.value;
+                setStepComment(stepId, comment);
+                saveStepComment(stepId, comment);
+            });
+        });
+
+        // Test pass/fail buttons
+        contentRoot.querySelectorAll('.btn-test-status').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                if (this.disabled) return;
+                const testId = this.dataset.testId;
+                const isFail = this.classList.contains('btn-test-fail');
+                const status = isFail ? 'fail' : 'pass';
+                saveTestStatus(testId, status, '');
+            });
+        });
+
+        // Test comment text areas
+        contentRoot.querySelectorAll('.exec-test-comment-box').forEach(textarea => {
+            textarea.addEventListener('change', function() {
+                const testId = this.dataset.testId;
+                const comment = this.value;
+                saveTestStatus(testId, '', comment);
+            });
+        });
+    }
+
+    function updateResultButtonDisplay(resultId) {
+        const state = getResultState(resultId);
+        const passBtn = contentRoot.querySelector(`.btn-result-pass[data-result-id="${resultId}"]`);
+        const failBtn = contentRoot.querySelector(`.btn-result-fail[data-result-id="${resultId}"]`);
+
+        if (passBtn) {
+            passBtn.classList.toggle('is-active', state.status === 'pass');
+        }
+        if (failBtn) {
+            failBtn.classList.toggle('is-active', state.status === 'fail');
+        }
+    }
+
+    function updateResultCommentButton(resultId) {
+        const state = getResultState(resultId);
+        const commentBtn = contentRoot.querySelector(`.btn-result-comment[data-result-id="${resultId}"]`);
+        if (commentBtn) {
+            commentBtn.classList.toggle('has-comment', !!state.comment);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Base URL management
+    // -----------------------------------------------------------------------
+    function getStoredBaseUrl() { return window.localStorage.getItem('testbook_base_url'); }
+    function setStoredBaseUrl(url) { window.localStorage.setItem('testbook_base_url', url); }
+    function getCurrentBaseUrl() { return getStoredBaseUrl() || defaultBaseUrl; }
+
+    // -----------------------------------------------------------------------
+    // Navigation
+    // -----------------------------------------------------------------------
+    const testsetById = new Map();
+    const testById = new Map();
+
+    suiteData.forEach(suite => {
+        (suite.testsets || []).forEach(testset => {
+            const tsIdStr = String(testset.id);
+            testsetById.set(tsIdStr, { suite, testset });
+            (testset.tests || []).forEach(test => {
+                const tIdStr = String(test.id);
+                testById.set(tIdStr, { suite, testset, test });
+            });
+        });
+    });
+
+    function setActiveTarget(target) {
+        document.querySelectorAll('.nav-target.is-active').forEach(n => n.classList.remove('is-active'));
+        const direct = document.querySelector(`.nav-target[data-target="${target}"]`);
+        if (direct) direct.classList.add('is-active');
+    }
+
+    function loadTarget(target, pushHash) {
+        if (!target) return;
+        let selectedWrap = null;
+        let selectedTestId = null;
+        if (target.startsWith('set/')) {
+            selectedWrap = testsetById.get(String(target.split('/')[1])) || null;
+        } else if (target.startsWith('test/')) {
+            const testId = target.split('/')[1];
+            const testWrap = testById.get(String(testId)) || null;
+            if (testWrap) { selectedWrap = { suite: testWrap.suite, testset: testWrap.testset }; selectedTestId = String(testWrap.test.id); }
+        }
+        if (!selectedWrap) return;
+        renderTestset(selectedWrap);
+        setActiveTarget(target);
+        if (selectedTestId) {
+            const el = document.getElementById(`exec-test-${selectedTestId}`);
+            if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        } else if (appMain) appMain.scrollTop = 0;
+        if (pushHash) history.pushState(null, '', `#${target}`);
+    }
+
+    document.querySelectorAll('.nav-target').forEach(node => {
+        node.addEventListener('click', function(e) {
+            e.preventDefault();
+            loadTarget(this.getAttribute('data-target'), true);
+        });
+    });
+
+    const initialHash = window.location.hash ? window.location.hash.substring(1) : '';
+    if (initialHash) {
+        loadTarget(initialHash, false);
+    } else if (suiteData.length > 0 && suiteData[0].testsets && suiteData[0].testsets.length > 0) {
+        loadTarget(`set/${suiteData[0].testsets[0].id}`, false);
+    }
+
+    window.addEventListener('hashchange', function() {
+        const hash = window.location.hash ? window.location.hash.substring(1) : '';
+        if (hash) loadTarget(hash, false);
+    });
+
+    // -----------------------------------------------------------------------
+    // Init
+    // -----------------------------------------------------------------------
+    // Initial render happens via hash navigation above
+});
+
+
+
+
+
+
+
+

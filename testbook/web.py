@@ -349,8 +349,14 @@ def _build_execution_suite_payload(execution: TestExecution) -> list[dict[str, o
                     "path": _text_value(getattr(execution_step, "path", ""), ""),
                     "resource": _text_value(getattr(execution_step, "resource", ""), ""),
                     "resource_url": "",
+                    "comment": _text_value(getattr(execution_step, "comment", ""), ""),
                     "results": [
-                        _text_value(getattr(result, "text", ""), "")
+                        {
+                            "id": _id_value(getattr(result, "id", ""), ""),
+                            "text": _text_value(getattr(result, "text", ""), ""),
+                            "status": _text_value(getattr(result, "status", "pending"), "pending"),
+                            "comment": _text_value(getattr(result, "comment", ""), ""),
+                        }
                         for result in step_results
                     ],
                 }
@@ -364,6 +370,8 @@ def _build_execution_suite_payload(execution: TestExecution) -> list[dict[str, o
             "github_edit_url": "",
             "context": getattr(execution_test, "context", {}) if isinstance(getattr(execution_test, "context", {}), dict) else {},
             "setup": _list_value(getattr(execution_test, "setup", [])),
+            "status": _text_value(getattr(execution_test, "status", "pending"), "pending"),
+            "comment": _text_value(getattr(execution_test, "comment", ""), ""),
             "steps": serialized_steps,
         }
         if isinstance(testsets, dict) and testset_key in testsets:
@@ -1200,6 +1208,97 @@ def create_app() -> Flask:
                 "plan_id": plan_id,
                 "test_ids": [item.test_id for item in items],
             })
+        finally:
+            session.close()
+
+    # -----------------------------------------------------------------------
+    # Execution API endpoints
+    # -----------------------------------------------------------------------
+
+    @app.patch("/api/execution-result/<int:result_id>")
+    def update_execution_result(result_id: int):
+        """Update status and/or comment for an execution result.
+        Accepts JSON {status: 'pass'|'fail'|'pending', comment: '...'}
+        """
+        session = get_session()
+        try:
+            result = session.query(ExecutionResult).filter_by(id=result_id).first()
+            if result is None:
+                return jsonify({"error": "Result not found"}), 404
+
+            data = request.get_json(force=True) or {}
+            status = str(data.get("status", "")).strip()
+            comment = str(data.get("comment", "")).strip()
+
+            if status and status in ("pass", "fail", "pending"):
+                result.status = status
+            if "comment" in data:
+                result.comment = comment
+
+            session.commit()
+            return jsonify({
+                "id": result.id,
+                "status": result.status,
+                "comment": result.comment
+            })
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 500
+        finally:
+            session.close()
+
+    @app.patch("/api/execution-step/<int:step_id>")
+    def update_execution_step(step_id: int):
+        """Update comment for an execution step.
+        Accepts JSON {comment: '...'}
+        """
+        session = get_session()
+        try:
+            step = session.query(ExecutionStep).filter_by(id=step_id).first()
+            if step is None:
+                return jsonify({"error": "Step not found"}), 404
+
+            data = request.get_json(force=True) or {}
+            comment = str(data.get("comment", "")).strip()
+
+            step.comment = comment
+            session.commit()
+            return jsonify({
+                "id": step.id,
+                "comment": step.comment
+            })
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 500
+        finally:
+            session.close()
+
+    @app.patch("/api/execution-test/<int:test_id>")
+    def update_execution_test(test_id: int):
+        """Update status and/or comment for an execution test.
+        Accepts JSON {status: 'pass'|'fail'|'pending', comment: '...'}
+        """
+        session = get_session()
+        try:
+            test = session.query(ExecutionTest).filter_by(id=test_id).first()
+            if test is None:
+                return jsonify({"error": "Test not found"}), 404
+
+            data = request.get_json(force=True) or {}
+            status = str(data.get("status", "")).strip()
+            comment = str(data.get("comment", "")).strip()
+
+            if status and status in ("pass", "fail", "pending"):
+                test.status = status
+            if "comment" in data:
+                test.comment = comment
+
+            session.commit()
+            return jsonify({
+                "id": test.id,
+                "status": test.status,
+                "comment": test.comment
+            })
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 500
         finally:
             session.close()
 
