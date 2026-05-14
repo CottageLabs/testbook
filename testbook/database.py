@@ -105,6 +105,11 @@ def _upgrade_schema(engine: Any) -> None:
         "title",
         "title VARCHAR(255) NOT NULL DEFAULT 'Execution'",
     )
+    _add_column_if_missing(
+        "test_execution",
+        "feedback_url",
+        "feedback_url VARCHAR(1024) NOT NULL DEFAULT ''",
+    )
 
 
 def _slugify_identity(value: object) -> str:

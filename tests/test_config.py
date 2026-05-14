@@ -52,7 +52,7 @@ class TestGetSourceRepoConfig(unittest.TestCase):
 
     def tearDown(self):
         reset_config()
-        for var in ("TESTBOOK_SOURCE_TOKEN", "TESTBOOK_CONFIG"):
+        for var in ("TESTBOOK_SOURCE_TOKEN", "TESTBOOK_ISSUES_TOKEN", "TESTBOOK_CONFIG"):
             os.environ.pop(var, None)
 
     def test_raises_when_repo_name_is_placeholder(self):
@@ -101,6 +101,9 @@ class TestGetSourceRepoConfig(unittest.TestCase):
         self.assertEqual(cfg["resources_path"], "")
         self.assertEqual(cfg["default_branch"], "main")
         self.assertEqual(cfg["freshness_check_interval_seconds"], 1800)
+        self.assertEqual(cfg["issues_repo"]["repo_name"], "org/repo")
+        self.assertEqual(cfg["issues_repo"]["default_branch"], "main")
+        self.assertEqual(cfg["issues_repo"]["github_token"], "tok")
 
     def test_returns_configured_optional_fields(self):
         content = textwrap.dedent("""\
@@ -118,6 +121,38 @@ class TestGetSourceRepoConfig(unittest.TestCase):
         self.assertEqual(cfg["resources_path"], "doajtest")
         self.assertEqual(cfg["default_branch"], "develop")
         self.assertEqual(cfg["freshness_check_interval_seconds"], 900)
+
+    def test_returns_configured_issues_repo_fields(self):
+        content = textwrap.dedent("""\
+            source_repo:
+              repo_name: "org/repo"
+              github_token: "source_tok"
+            issues_repo:
+              repo_name: "org/issues"
+              default_branch: "stable"
+              github_token: "issues_tok"
+        """)
+        with _isolated_config(content):
+            cfg = get_source_repo_config()
+
+        self.assertEqual(cfg["issues_repo"]["repo_name"], "org/issues")
+        self.assertEqual(cfg["issues_repo"]["default_branch"], "stable")
+        self.assertEqual(cfg["issues_repo"]["github_token"], "issues_tok")
+
+    def test_issues_repo_token_can_be_overridden_by_env_var(self):
+        content = textwrap.dedent("""\
+            source_repo:
+              repo_name: "org/repo"
+              github_token: "source_tok"
+            issues_repo:
+              repo_name: "org/issues"
+              github_token: "issues_tok"
+        """)
+        with _isolated_config(content):
+            os.environ["TESTBOOK_ISSUES_TOKEN"] = "issues_env_tok"
+            cfg = get_source_repo_config()
+
+        self.assertEqual(cfg["issues_repo"]["github_token"], "issues_env_tok")
 
 
 # ---------------------------------------------------------------------------

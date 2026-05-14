@@ -9,6 +9,7 @@ Resolution order for the config file:
 Tokens can also be supplied (or overridden) via environment variables:
   - ``TESTBOOK_SOURCE_TOKEN``  — GitHub token for the source (code) repo.
   - ``TESTBOOK_PLANS_TOKEN``   — GitHub token for the plans repo.
+  - ``TESTBOOK_ISSUES_TOKEN``  — GitHub token for the issues/feedback repo.
 
 These env vars take priority over whatever is written in the config file,
 which makes it safe to leave the ``github_token`` fields blank in
@@ -105,6 +106,11 @@ def get_source_repo_config() -> dict[str, Any]:
             "TESTBOOK_SOURCE_TOKEN environment variable."
         )
 
+    issues_section = cfg.get("issues_repo", {})
+    issues_repo_name = issues_section.get("repo_name", repo_name)
+    issues_default_branch = issues_section.get("default_branch", section.get("default_branch", "main"))
+    issues_token = os.environ.get("TESTBOOK_ISSUES_TOKEN", "") or issues_section.get("github_token", "") or token
+
     return {
         "repo_name": repo_name,
         "tests_path": section.get("tests_path", "testbook"),
@@ -113,6 +119,11 @@ def get_source_repo_config() -> dict[str, Any]:
         "default_base_url": section.get("default_base_url", "http://localhost:5004/"),
         "freshness_check_interval_seconds": section.get("freshness_check_interval_seconds", 1800),
         "github_token": token,
+        "issues_repo": {
+            "repo_name": issues_repo_name,
+            "default_branch": issues_default_branch,
+            "github_token": issues_token,
+        },
     }
 
 

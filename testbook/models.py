@@ -384,6 +384,7 @@ class TestExecution(Base):
     iteration = Column(Integer, nullable=False, default=1)
     is_finished = Column(Boolean, nullable=False, default=False)
     comment = Column(Text, nullable=False, default="")
+    feedback_url = Column(String(1024), nullable=False, default="")
     created_at = Column(DateTime(timezone=True), nullable=False)
     updated_at = Column(DateTime(timezone=True), nullable=False)
 

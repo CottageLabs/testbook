@@ -682,9 +682,12 @@ class TestExecutionsRoute(unittest.TestCase):
 
         session_instance.query.side_effect = [plan_query, existing_exec_query]
 
+        captured = {"feedback_url": None}
+
         def capture_add(obj):
             if isinstance(obj, TestExecution):
                 obj.id = 55
+                captured["feedback_url"] = obj.feedback_url
             elif isinstance(obj, ExecutionTest):
                 obj.id = 77
             elif isinstance(obj, ExecutionStep):
@@ -695,18 +698,25 @@ class TestExecutionsRoute(unittest.TestCase):
 
         response = self.client.post(
             "/executions/add",
-            data={"branch": "main", "plan_id": "7", "title": "Cycle 1"},
+            data={
+                "branch": "main",
+                "plan_id": "7",
+                "title": "Cycle 1",
+                "feedback_url": "https://github.com/org/repo/issues/42",
+            },
             follow_redirects=False,
         )
         self.assertEqual(response.status_code, 302)
         self.assertIn("/executions", response.location)
         self.assertIn("plan_id=7", response.location)
         self.assertIn("execution_id=55", response.location)
+        self.assertEqual(captured["feedback_url"], "https://github.com/org/repo/issues/42")
 
     def test_update_execution_renames_it(self):
         execution = MagicMock()
         execution.id = 9
         execution.title = "Cycle 1"
+        execution.feedback_url = ""
 
         session_instance = MagicMock()
         session_instance.query.return_value.filter_by.return_value.first.return_value = execution
@@ -716,12 +726,16 @@ class TestExecutionsRoute(unittest.TestCase):
 
         response = self.client.patch(
             "/api/execution/9",
-            json={"title": "Cycle 1 - Retest"},
+            json={
+                "title": "Cycle 1 - Retest",
+                "feedback_url": "https://github.com/org/repo/pull/55",
+            },
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 200)
         data = response.get_json()
         self.assertEqual(data["title"], "Cycle 1 - Retest")
+        self.assertEqual(data["feedback_url"], "https://github.com/org/repo/pull/55")
 
     def test_executions_route_displays_active_plan_in_sidebar(self):
         session_instance = MagicMock()
@@ -742,6 +756,33 @@ class TestExecutionsRoute(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Executing plan:", response.data)
         self.assertIn(b"Smoke Plan", response.data)
+
+    def test_executions_route_displays_feedback_url_link_for_selected_execution(self):
+        session_instance = MagicMock()
+        sync_query = MagicMock()
+        sync_query.filter_by.return_value.first.return_value = None
+
+        plan = SimpleNamespace(id=7, title="Smoke Plan", plan_items=[])
+        plans_query = MagicMock()
+        plans_query.options.return_value.filter_by.return_value.order_by.return_value.all.return_value = [plan]
+
+        execution = SimpleNamespace(
+            id=9,
+            title="Cycle 1",
+            feedback_url="https://github.com/org/repo/issues/42",
+            execution_tests=[],
+            test_plan_id=7,
+        )
+        executions_query = MagicMock()
+        executions_query.options.return_value.filter_by.return_value.order_by.return_value.all.return_value = [execution]
+
+        session_instance.query.side_effect = [sync_query, plans_query, executions_query]
+        self.session_mock_obj.return_value = session_instance
+
+        response = self.client.get("/executions?plan_id=7&execution_id=9")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Feedback:", response.data)
+        self.assertIn(b'href="https://github.com/org/repo/issues/42"', response.data)
 
 
 if __name__ == "__main__":

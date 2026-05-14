@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 from datetime import datetime, timezone
 from sqlalchemy.orm import joinedload
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 from testbook.config import ConfigurationError, get_source_repo_config
 from testbook.database import get_session, init_db, sync_from_source_repo
@@ -62,6 +62,18 @@ def _int_value(value: object, default: int) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def _normalize_feedback_url(value: object) -> str:
+    raw = _text_value(value, "").strip()
+    if not raw:
+        return ""
+    parsed = urlparse(raw)
+    if parsed.scheme not in ("http", "https"):
+        return ""
+    if not parsed.netloc:
+        return ""
+    return raw
 
 
 def _to_utc(dt: datetime | None) -> datetime | None:
@@ -285,6 +297,7 @@ def _serialize_executions(executions: list[TestExecution]) -> list[dict[str, obj
                 "iteration": _int_value(getattr(execution, "iteration", 1), 1),
                 "test_count": len(raw_tests),
                 "is_finished": bool(getattr(execution, "is_finished", False)),
+                "feedback_url": _text_value(getattr(execution, "feedback_url", ""), ""),
             }
         )
     return serialized
@@ -406,6 +419,7 @@ def _create_execution_from_plan(
     tester_name: str,
     repo_name: str,
     branch: str,
+    feedback_url: str = "",
 ) -> TestExecution:
     """Create an execution and snapshot all tests in the plan by value."""
     existing_iteration = (
@@ -425,6 +439,7 @@ def _create_execution_from_plan(
         tester_name=tester_name,
         iteration=next_iteration,
         is_finished=False,
+        feedback_url=_normalize_feedback_url(feedback_url),
         created_at=now,
         updated_at=now,
     )
@@ -526,6 +541,7 @@ def _default_render_context() -> dict[str, object]:
         "executions": [],
         "selected_execution_id": "",
         "selected_execution_title": "",
+        "selected_execution_feedback_url": "",
     }
 
 
@@ -934,6 +950,7 @@ def create_app() -> Flask:
                 executions=_serialize_executions(executions),
                 selected_execution_id=_id_value(getattr(selected_execution, "id", ""), "") if selected_execution else "",
                 selected_execution_title=_text_value(getattr(selected_execution, "title", ""), ""),
+                selected_execution_feedback_url=_text_value(getattr(selected_execution, "feedback_url", ""), ""),
                 selected_plan_id=_id_value(getattr(selected_plan, "id", ""), "") if selected_plan else "",
                 selected_plan_title=_text_value(getattr(selected_plan, "title", ""), ""),
                 active_plan_id=_id_value(getattr(selected_plan, "id", ""), "") if selected_plan else "",
@@ -980,6 +997,7 @@ def create_app() -> Flask:
             selected_branch = request.form.get("branch", cfg["default_branch"])
             plan_id_raw = request.form.get("plan_id", "").strip()
             title = request.form.get("title", "").strip()
+            feedback_url = _normalize_feedback_url(request.form.get("feedback_url", ""))
             if not plan_id_raw:
                 return redirect(url_for("executions_index", branch=selected_branch))
             plan_id_int = int(plan_id_raw)
@@ -1022,6 +1040,7 @@ def create_app() -> Flask:
                 tester_name="Unassigned",
                 repo_name=cfg["repo_name"],
                 branch=selected_branch,
+                feedback_url=feedback_url,
             )
             execution.updated_at = datetime.now(timezone.utc)
             session.commit()
@@ -1045,6 +1064,7 @@ def create_app() -> Flask:
             cfg = get_source_repo_config()
             data = request.get_json(force=True) or {}
             title = str(data.get("title", "")).strip()
+            feedback_url = _normalize_feedback_url(data.get("feedback_url", "")) if "feedback_url" in data else None
             if not title:
                 return jsonify({"error": "Title is required"}), 400
 
@@ -1057,9 +1077,11 @@ def create_app() -> Flask:
                 return jsonify({"error": "Execution not found"}), 404
 
             execution.title = title
+            if feedback_url is not None:
+                execution.feedback_url = feedback_url
             execution.updated_at = datetime.now(timezone.utc)
             session.commit()
-            return jsonify({"id": execution.id, "title": execution.title})
+            return jsonify({"id": execution.id, "title": execution.title, "feedback_url": execution.feedback_url})
         except Exception as exc:
             return jsonify({"error": str(exc)}), 500
         finally:

@@ -335,6 +335,7 @@ class TestExecutionModels(unittest.TestCase):
             iteration=2,
             is_finished=True,
             comment="Stopped early by design",
+            feedback_url="https://github.com/org/repo/issues/123",
             created_at=datetime(2026, 1, 2, 10, 0, tzinfo=timezone.utc),
             updated_at=datetime(2026, 1, 2, 10, 15, tzinfo=timezone.utc),
         )
@@ -382,6 +383,7 @@ class TestExecutionModels(unittest.TestCase):
         self.assertEqual(fetched.tester_name, "Richard")
         self.assertEqual(fetched.iteration, 2)
         self.assertTrue(fetched.is_finished)
+        self.assertEqual(fetched.feedback_url, "https://github.com/org/repo/issues/123")
         self.assertEqual(fetched.execution_tests[0].status, "fail")
         self.assertEqual(fetched.execution_tests[0].steps[0].comment, "Slow response")
         self.assertEqual(
@@ -493,6 +495,7 @@ class TestSchemaUpgrades(unittest.TestCase):
             column_names = {row[1] for row in rows}
 
         self.assertIn("title", column_names)
+        self.assertIn("feedback_url", column_names)
 
     def test_sync_uses_yaml_test_id_when_present(self):
         mock_repo = MagicMock()

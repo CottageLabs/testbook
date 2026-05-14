@@ -25,3 +25,11 @@ plans_repo:
   # Leave blank and set TESTBOOK_PLANS_TOKEN env var instead for production:
   github_token: ""
 
+# Optional: repository to use when storing execution feedback in GitHub issues/PRs.
+# If omitted, Testbook falls back to source_repo settings.
+issues_repo:
+  repo_name: "myorg/myproject"
+  default_branch: "main"
+  # Leave blank and set TESTBOOK_ISSUES_TOKEN env var instead for production:
+  github_token: ""
+
