@@ -567,15 +567,18 @@ def create_app() -> Flask:
         try:
             cfg = get_source_repo_config()
             selected_branch = request.form.get("branch", cfg["default_branch"])
+            title = request.form.get("title", "").strip()
             session = get_session()
-            existing_count = (
-                session.query(TestPlan)
-                .filter_by(repo_name=cfg["repo_name"], branch=selected_branch)
-                .count()
-            )
+            if not title:
+                existing_count = (
+                    session.query(TestPlan)
+                    .filter_by(repo_name=cfg["repo_name"], branch=selected_branch)
+                    .count()
+                )
+                title = f"New Plan {existing_count + 1}"
             now = datetime.now(timezone.utc)
             plan = TestPlan(
-                title=f"New Plan {existing_count + 1}",
+                title=title,
                 repo_name=cfg["repo_name"],
                 branch=selected_branch,
                 created_at=now,
@@ -588,6 +591,28 @@ def create_app() -> Flask:
             return redirect(url_for("plans_index", branch=selected_branch, plan_id=plan_id))
         except Exception:
             return redirect(url_for("plans_index"))
+
+    @app.patch("/api/plan/<int:plan_id>")
+    def update_plan(plan_id: int):
+        """Rename a plan. Accepts JSON {title: "..."}. Returns updated plan."""
+        session = get_session()
+        try:
+            cfg = get_source_repo_config()
+            data = request.get_json(force=True) or {}
+            title = str(data.get("title", "")).strip()
+            if not title:
+                return jsonify({"error": "Title is required"}), 400
+            plan = session.query(TestPlan).filter_by(id=plan_id, repo_name=cfg["repo_name"]).first()
+            if plan is None:
+                return jsonify({"error": "Plan not found"}), 404
+            plan.title = title
+            plan.updated_at = datetime.now(timezone.utc)
+            session.commit()
+            return jsonify({"id": plan.id, "title": plan.title})
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 500
+        finally:
+            session.close()
 
     @app.get("/api/default-base-url")
     def get_default_base_url() -> dict:

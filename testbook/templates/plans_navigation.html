@@ -1,13 +1,42 @@
+<!-- Title row -->
 <div class="panel-title-row panel-title-row--plans">
     <h2>Test Plans</h2>
-    <form method="post" action="/plans/add" class="add-plan-form">
-        <input type="hidden" name="branch" value="{{ selected_branch }}">
-        <button class="btn btn-add-plan" type="submit">Add Plan</button>
-    </form>
+    <button type="button" id="add-plan-btn" class="btn btn-add-plan">+ Add Plan</button>
 </div>
 
+<!-- Plan selector row -->
+<div class="plan-nav-selector-row">
+    <form id="plan-nav-form" method="get" action="/plans" class="plan-nav-form">
+        <input type="hidden" name="branch" value="{{ selected_branch }}">
+        <select id="plan-nav-select" name="plan_id" onchange="this.form.submit()">
+            <option value="">— None —</option>
+            {% for plan in available_plans %}
+            <option value="{{ plan.id }}" {% if plan.id|string == selected_plan_id|string %}selected{% endif %}>{{ plan.title }}</option>
+            {% endfor %}
+        </select>
+        <noscript><button type="submit">Go</button></noscript>
+    </form>
+    <button type="button" id="edit-plan-btn" class="btn-icon-edit" title="Rename plan"{% if not selected_plan_id %} disabled{% endif %}>✎</button>
+</div>
+
+<!-- Inline plan name form (shown on Add or Edit) -->
+<div id="plan-name-form" class="plan-name-form" hidden>
+    <input type="text" id="plan-name-input" class="plan-name-input" placeholder="Plan name…" maxlength="200" autocomplete="off">
+    <div class="plan-name-actions">
+        <button type="button" id="plan-name-confirm" class="btn btn-primary btn-sm">Save</button>
+        <button type="button" id="plan-name-cancel" class="btn btn-sm">Cancel</button>
+    </div>
+</div>
+
+<!-- Hidden form for the actual add-plan POST (title is set by JS) -->
+<form id="add-plan-hidden-form" method="post" action="/plans/add" style="display:none">
+    <input type="hidden" name="branch" value="{{ selected_branch }}">
+    <input type="hidden" id="add-plan-title-input" name="title" value="">
+</form>
+
+<!-- Plan tests heading + expand/collapse controls -->
 <div class="panel-title-row">
-    <h2>Plan Tests{% if selected_plan_title %}: {{ selected_plan_title }}{% endif %}</h2>
+    <h2>Plan Tests{% if selected_plan_title %}: <span id="plan-nav-title">{{ selected_plan_title }}</span>{% else %}<span id="plan-nav-title"></span>{% endif %}</h2>
     {% if suite_payload %}
     <div class="nav-controls">
         <button class="btn-expand-all" type="button" title="Expand all">▼</button>
@@ -18,11 +47,8 @@
 </div>
 
 {% if not selected_plan_id %}
-<p class="muted">Select a plan from the header to view its tests.</p>
+<p class="muted">Select a plan above or from the header to view its tests.</p>
 {% else %}
 {% set empty_state_message = 'This plan does not contain any tests yet.' %}
 {% include("_suite_tree.html") %}
 {% endif %}
-
-
-

@@ -519,8 +519,65 @@ class TestPlansRoute(unittest.TestCase):
         response = self.client.get("/plans?plan_id=7")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Smoke Plan", response.data)
-        self.assertIn(b"Plan Tests: Smoke Plan", response.data)
+        self.assertIn(b'id="plan-nav-title">Smoke Plan', response.data)
         self.assertIn(b"Test 1", response.data)
+
+    def test_add_plan_with_title(self):
+        """POST /plans/add with a title uses that title instead of auto-generating one."""
+        session_instance = MagicMock()
+        created_plan = SimpleNamespace(id=42, title="My New Plan")
+        session_instance.add = MagicMock()
+        session_instance.commit = MagicMock()
+        session_instance.close = MagicMock()
+        self.session_mock_obj.return_value = session_instance
+
+        # Capture the plan added so we can read its id
+        def capture_add(obj):
+            obj.id = 42
+
+        session_instance.add.side_effect = capture_add
+
+        response = self.client.post(
+            "/plans/add",
+            data={"branch": "main", "title": "My New Plan"},
+            follow_redirects=False,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("plan_id=42", response.location)
+
+    def test_update_plan_renames_it(self):
+        """PATCH /api/plan/<id> renames the plan and returns updated JSON."""
+        plan = MagicMock()
+        plan.id = 7
+        plan.title = "Smoke Plan"
+
+        session_instance = MagicMock()
+        session_instance.query.return_value.filter_by.return_value.first.return_value = plan
+        session_instance.commit = MagicMock()
+        session_instance.close = MagicMock()
+        self.session_mock_obj.return_value = session_instance
+
+        response = self.client.patch(
+            "/api/plan/7",
+            json={"title": "Renamed Plan"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(data["title"], "Renamed Plan")
+
+    def test_update_plan_rejects_empty_title(self):
+        """PATCH /api/plan/<id> with empty title returns 400."""
+        session_instance = MagicMock()
+        session_instance.close = MagicMock()
+        self.session_mock_obj.return_value = session_instance
+
+        response = self.client.patch(
+            "/api/plan/7",
+            json={"title": "   "},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
 
 
 if __name__ == "__main__":

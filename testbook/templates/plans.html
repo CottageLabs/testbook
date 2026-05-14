@@ -24,3 +24,119 @@
 <script id="plan-test-ids" type="application/json">{{ plan_test_ids|tojson }}</script>
 {% endblock %}
 
+{% block page_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const addPlanBtn       = document.getElementById('add-plan-btn');
+    const editPlanBtn      = document.getElementById('edit-plan-btn');
+    const planNameForm     = document.getElementById('plan-name-form');
+    const planNameInput    = document.getElementById('plan-name-input');
+    const planNameConfirm  = document.getElementById('plan-name-confirm');
+    const planNameCancel   = document.getElementById('plan-name-cancel');
+    const addPlanHiddenForm = document.getElementById('add-plan-hidden-form');
+    const addPlanTitleInput = document.getElementById('add-plan-title-input');
+    const planNavSelect    = document.getElementById('plan-nav-select');
+    const planHeaderSelect = document.getElementById('plan-header-select');
+    const planNavTitle     = document.getElementById('plan-nav-title');
+
+    let planNameMode = null; // 'add' | 'edit'
+
+    // Keep the header plan selector mirrored to the sidebar one
+    // (sidebar → header: header already reflects state after page load; no JS needed for that direction
+    //  because both use form submits that reload the page)
+    // Header → sidebar: same reason, but just in case we wire a live mirror too.
+    if (planHeaderSelect && planNavSelect) {
+        planHeaderSelect.addEventListener('change', function () {
+            planNavSelect.value = this.value;
+        });
+    }
+
+    function showNameForm(mode, initialValue, placeholder) {
+        planNameMode = mode;
+        planNameInput.value = initialValue;
+        planNameInput.placeholder = placeholder;
+        planNameForm.hidden = false;
+        addPlanBtn.style.display = 'none';
+        if (editPlanBtn) editPlanBtn.style.display = 'none';
+        planNameInput.focus();
+        if (initialValue) planNameInput.select();
+    }
+
+    function hideNameForm() {
+        planNameForm.hidden = true;
+        planNameMode = null;
+        addPlanBtn.style.display = '';
+        if (editPlanBtn) editPlanBtn.style.display = '';
+    }
+
+    if (addPlanBtn) {
+        addPlanBtn.addEventListener('click', function () {
+            showNameForm('add', '', 'New plan name…');
+        });
+    }
+
+    if (editPlanBtn) {
+        editPlanBtn.addEventListener('click', function () {
+            if (!planNavSelect || !planNavSelect.value) return;
+            const currentName = planNavSelect.options[planNavSelect.selectedIndex].text;
+            showNameForm('edit', currentName, 'Plan name…');
+        });
+    }
+
+    if (planNameCancel) {
+        planNameCancel.addEventListener('click', hideNameForm);
+    }
+
+    if (planNameConfirm) {
+        planNameConfirm.addEventListener('click', function () {
+            const name = planNameInput.value.trim();
+            if (!name) { planNameInput.focus(); return; }
+
+            if (planNameMode === 'add') {
+                addPlanTitleInput.value = name;
+                addPlanHiddenForm.submit();
+            } else if (planNameMode === 'edit') {
+                const planId = planNavSelect ? planNavSelect.value : '';
+                if (!planId) return;
+                planNameConfirm.disabled = true;
+                fetch('/api/plan/' + encodeURIComponent(planId), {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: name }),
+                })
+                .then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
+                .then(function (data) {
+                    // Update sidebar selector option
+                    if (planNavSelect) {
+                        const opt = planNavSelect.querySelector('option[value="' + planId + '"]');
+                        if (opt) opt.textContent = data.title;
+                    }
+                    // Update header selector option
+                    if (planHeaderSelect) {
+                        const opt = planHeaderSelect.querySelector('option[value="' + planId + '"]');
+                        if (opt) opt.textContent = data.title;
+                    }
+                    // Update "Plan Tests: …" heading
+                    if (planNavTitle) planNavTitle.textContent = data.title;
+                    hideNameForm();
+                })
+                .catch(function () {
+                    alert('Could not rename the plan. Please try again.');
+                })
+                .finally(function () {
+                    planNameConfirm.disabled = false;
+                });
+            }
+        });
+    }
+
+    if (planNameInput) {
+        planNameInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter')  { e.preventDefault(); planNameConfirm.click(); }
+            if (e.key === 'Escape') { e.preventDefault(); hideNameForm(); }
+        });
+    }
+});
+</script>
+{% endblock %}
+

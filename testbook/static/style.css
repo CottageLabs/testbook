@@ -442,6 +442,111 @@ p {
     opacity: 0.92;
 }
 
+/* Plan selector row in sidebar (plans page) */
+.plan-nav-selector-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.plan-nav-form {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+}
+
+.plan-nav-form select,
+#plan-nav-select {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    background: var(--surface-alt);
+    color: var(--text);
+    cursor: pointer;
+}
+
+.btn-icon-edit {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    color: var(--text);
+    flex-shrink: 0;
+    transition: all 0.15s ease;
+}
+
+.btn-icon-edit:hover:not(:disabled) {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.btn-icon-edit:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+/* Inline plan name form */
+.plan-name-form {
+    margin-bottom: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+
+.plan-name-input {
+    width: 100%;
+    padding: 7px 9px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    background: var(--surface);
+    color: var(--text);
+}
+
+.plan-name-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.plan-name-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-sm {
+    padding: 5px 12px;
+    font-size: 0.85rem;
+    border-radius: 7px;
+}
+
+.btn:not(.btn-primary):not(.btn-add-plan) {
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    color: var(--text);
+}
+
+.btn:not(.btn-primary):not(.btn-add-plan):hover {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
 /* Active plan indicator in header */
 .active-plan-indicator {
     margin: 0;
