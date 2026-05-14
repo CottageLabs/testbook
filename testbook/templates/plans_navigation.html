@@ -36,7 +36,7 @@
 
 <!-- Plan tests heading + expand/collapse controls -->
 <div class="panel-title-row">
-    <h2>Plan Tests{% if selected_plan_title %}: <span id="plan-nav-title">{{ selected_plan_title }}</span>{% else %}<span id="plan-nav-title"></span>{% endif %}</h2>
+    <h2><span id="plan-nav-title">{% if selected_plan_title %}{{ selected_plan_title }}{% endif %}</span></h2>
     {% if suite_payload %}
     <div class="nav-controls">
         <button class="btn-expand-all" type="button" title="Expand all">▼</button>
