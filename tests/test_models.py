@@ -6,13 +6,29 @@ Uses an in-memory SQLite database so tests run fast and in isolation.
 from __future__ import annotations
 
 import unittest
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from testbook.database import reset_db, sync_from_source_repo
-from testbook.models import Base, BranchSyncState, Result, SetupItem, Step, Suite, Test, TestDependency, TestSet
+from testbook.models import (
+    Base,
+    BranchSyncState,
+    ExecutionResult,
+    ExecutionStep,
+    ExecutionTest,
+    Result,
+    SetupItem,
+    Step,
+    Suite,
+    Test,
+    TestDependency,
+    TestExecution,
+    TestPlan,
+    TestSet,
+)
 
 
 class TestModelsSchema(unittest.TestCase):
@@ -257,6 +273,183 @@ class TestSyncFromSourceRepo(unittest.TestCase):
         # ...existing code...
 
         session.close()
+
+
+class TestExecutionModels(unittest.TestCase):
+    """Verify execution models persist by-value snapshots and runtime status."""
+
+    def setUp(self):
+        self.engine = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(self.engine)
+        self.SessionLocal = sessionmaker(bind=self.engine)
+        self.session = self.SessionLocal()
+
+    def tearDown(self):
+        self.session.close()
+
+    def _seed_source_test_and_plan(self):
+        suite = Suite(name="Auth", repo_name="org/repo", branch="main", file_path="test.yml")
+        self.session.add(suite)
+        self.session.flush()
+
+        testset = TestSet(name="Login", suite_id=suite.id)
+        self.session.add(testset)
+        self.session.flush()
+
+        test = Test(
+            stable_id="auth-login-001",
+            title="Valid login",
+            testset_id=testset.id,
+            context={"role": "admin"},
+            file_path="test.yml",
+        )
+        self.session.add(test)
+        self.session.flush()
+
+        step = Step(test_id=test.id, text="Enter credentials", path="/login", order_index=0)
+        self.session.add(step)
+        self.session.flush()
+
+        result = Result(step_id=step.id, text="User is logged in", order_index=0)
+        self.session.add(result)
+
+        plan = TestPlan(
+            title="Smoke",
+            repo_name="org/repo",
+            branch="main",
+            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            updated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
+        self.session.add(plan)
+        self.session.flush()
+        return suite, testset, test, step, result, plan
+
+    def test_execution_can_store_status_and_comments(self):
+        _, _, source_test, _, _, plan = self._seed_source_test_and_plan()
+
+        execution = TestExecution(
+            test_plan_id=plan.id,
+            repo_name="org/repo",
+            branch="main",
+            tester_name="Richard",
+            iteration=2,
+            is_finished=True,
+            comment="Stopped early by design",
+            created_at=datetime(2026, 1, 2, 10, 0, tzinfo=timezone.utc),
+            updated_at=datetime(2026, 1, 2, 10, 15, tzinfo=timezone.utc),
+        )
+        self.session.add(execution)
+        self.session.flush()
+
+        ex_test = ExecutionTest(
+            execution_id=execution.id,
+            source_test_id=source_test.id,
+            source_test_stable_id=source_test.stable_id,
+            source_suite_name="Auth",
+            source_testset_name="Login",
+            title="Valid login",
+            context={"role": "admin"},
+            setup=["Create account"],
+            order_index=0,
+            status="fail",
+            comment="Test failed due to timeout",
+        )
+        self.session.add(ex_test)
+        self.session.flush()
+
+        ex_step = ExecutionStep(
+            execution_test_id=ex_test.id,
+            text="Enter credentials",
+            path="/login",
+            resource=None,
+            order_index=0,
+            comment="Slow response",
+        )
+        self.session.add(ex_step)
+        self.session.flush()
+
+        ex_result = ExecutionResult(
+            execution_step_id=ex_step.id,
+            text="User is logged in",
+            order_index=0,
+            status="fail",
+            comment="Login button returned 500",
+        )
+        self.session.add(ex_result)
+        self.session.commit()
+
+        fetched = self.session.query(TestExecution).first()
+        self.assertEqual(fetched.tester_name, "Richard")
+        self.assertEqual(fetched.iteration, 2)
+        self.assertTrue(fetched.is_finished)
+        self.assertEqual(fetched.execution_tests[0].status, "fail")
+        self.assertEqual(fetched.execution_tests[0].steps[0].comment, "Slow response")
+        self.assertEqual(
+            fetched.execution_tests[0].steps[0].results[0].comment,
+            "Login button returned 500",
+        )
+
+    def test_execution_snapshot_is_by_value_not_live_reference(self):
+        _, _, source_test, source_step, source_result, plan = self._seed_source_test_and_plan()
+
+        execution = TestExecution(
+            test_plan_id=plan.id,
+            repo_name="org/repo",
+            branch="main",
+            tester_name="Alice",
+            iteration=1,
+            is_finished=False,
+            created_at=datetime(2026, 1, 2, 10, 0, tzinfo=timezone.utc),
+            updated_at=datetime(2026, 1, 2, 10, 0, tzinfo=timezone.utc),
+        )
+        self.session.add(execution)
+        self.session.flush()
+
+        ex_test = ExecutionTest(
+            execution_id=execution.id,
+            source_test_id=source_test.id,
+            source_test_stable_id=source_test.stable_id,
+            source_suite_name="Auth",
+            source_testset_name="Login",
+            title=source_test.title,
+            context=dict(source_test.context),
+            setup=["Create account"],
+            order_index=0,
+        )
+        self.session.add(ex_test)
+        self.session.flush()
+
+        ex_step = ExecutionStep(
+            execution_test_id=ex_test.id,
+            text=source_step.text,
+            path=source_step.path,
+            order_index=0,
+        )
+        self.session.add(ex_step)
+        self.session.flush()
+
+        self.session.add(
+            ExecutionResult(
+                execution_step_id=ex_step.id,
+                text=source_result.text,
+                order_index=0,
+            )
+        )
+        self.session.commit()
+
+        # Simulate source test update after execution has started.
+        source_test.title = "Valid login updated"
+        source_step.text = "Enter credentials and MFA"
+        source_result.text = "Dashboard is shown"
+        self.session.commit()
+
+        frozen_ex_test = self.session.query(ExecutionTest).first()
+        frozen_ex_step = self.session.query(ExecutionStep).first()
+        frozen_ex_result = self.session.query(ExecutionResult).first()
+
+        self.assertEqual(frozen_ex_test.title, "Valid login")
+        self.assertEqual(frozen_ex_step.text, "Enter credentials")
+        self.assertEqual(frozen_ex_result.text, "User is logged in")
 
     def test_sync_uses_yaml_test_id_when_present(self):
         mock_repo = MagicMock()

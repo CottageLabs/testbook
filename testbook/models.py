@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, Text, create_engine
+from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text, create_engine
 from sqlalchemy.orm import declarative_base, relationship
 
 if TYPE_CHECKING:
@@ -358,3 +358,117 @@ class TestPlanItem(Base):
 
 	def __repr__(self) -> str:
 		return f"<TestPlanItem {self.test.title!r} in plan {self.test_plan.title!r}>"
+
+
+# ---------------------------------------------------------------------------
+# Test Execution models
+# ---------------------------------------------------------------------------
+
+
+class TestExecution(Base):
+    """Represents one execution run of a test plan by a specific tester.
+
+    The execution contains by-value snapshots of tests/steps/results so the run
+    remains immutable even if source tests later change.
+    """
+
+    __tablename__ = "test_execution"
+    __allow_unmapped__ = True
+
+    id = Column(Integer, primary_key=True)
+    test_plan_id = Column(Integer, ForeignKey("test_plan.id"), nullable=False, index=True)
+    repo_name = Column(String(255), nullable=False, index=True)
+    branch = Column(String(255), nullable=False, index=True)
+    tester_name = Column(String(255), nullable=False)
+    iteration = Column(Integer, nullable=False, default=1)
+    is_finished = Column(Boolean, nullable=False, default=False)
+    comment = Column(Text, nullable=False, default="")
+    created_at = Column(DateTime(timezone=True), nullable=False)
+    updated_at = Column(DateTime(timezone=True), nullable=False)
+
+    test_plan = relationship("TestPlan")
+    execution_tests = relationship(
+        "ExecutionTest", back_populates="execution", cascade="all, delete-orphan"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<TestExecution plan={self.test_plan_id} tester={self.tester_name!r} "
+            f"iter={self.iteration} finished={self.is_finished}>"
+        )
+
+
+class ExecutionTest(Base):
+    """By-value snapshot of a test to run within an execution."""
+
+    __tablename__ = "execution_test"
+    __allow_unmapped__ = True
+
+    id = Column(Integer, primary_key=True)
+    execution_id = Column(Integer, ForeignKey("test_execution.id"), nullable=False, index=True)
+
+    # References to source test metadata for traceability (not for runtime linkage).
+    source_test_id = Column(Integer, nullable=True, index=True)
+    source_test_stable_id = Column(String(255), nullable=False, default="")
+    source_suite_name = Column(String(255), nullable=False, default="")
+    source_testset_name = Column(String(255), nullable=False, default="")
+
+    # Snapshot fields copied by value.
+    title = Column(String(255), nullable=False)
+    context = Column(JSON, nullable=False, default=dict)
+    setup = Column(JSON, nullable=False, default=list)
+    order_index = Column(Integer, nullable=False, default=0)
+
+    # Runtime execution state.
+    status = Column(String(20), nullable=False, default="pending")  # pending|pass|fail
+    comment = Column(Text, nullable=False, default="")
+
+    execution = relationship("TestExecution", back_populates="execution_tests")
+    steps = relationship("ExecutionStep", back_populates="execution_test", cascade="all, delete-orphan")
+
+    def __repr__(self) -> str:
+        return f"<ExecutionTest {self.title!r} status={self.status}>"
+
+
+class ExecutionStep(Base):
+    """By-value snapshot of a step within an execution test."""
+
+    __tablename__ = "execution_step"
+    __allow_unmapped__ = True
+
+    id = Column(Integer, primary_key=True)
+    execution_test_id = Column(Integer, ForeignKey("execution_test.id"), nullable=False, index=True)
+    text = Column(Text, nullable=False)
+    path = Column(String(512), nullable=True)
+    resource = Column(String(512), nullable=True)
+    order_index = Column(Integer, nullable=False, default=0)
+    comment = Column(Text, nullable=False, default="")
+
+    execution_test = relationship("ExecutionTest", back_populates="steps")
+    results = relationship("ExecutionResult", back_populates="execution_step", cascade="all, delete-orphan")
+
+    def __repr__(self) -> str:
+        return f"<ExecutionStep {self.order_index} of execution_test={self.execution_test_id}>"
+
+
+class ExecutionResult(Base):
+    """By-value snapshot of a result/assertion and its execution outcome."""
+
+    __tablename__ = "execution_result"
+    __allow_unmapped__ = True
+
+    id = Column(Integer, primary_key=True)
+    execution_step_id = Column(Integer, ForeignKey("execution_step.id"), nullable=False, index=True)
+    text = Column(Text, nullable=False)
+    order_index = Column(Integer, nullable=False, default=0)
+
+    # Runtime execution state.
+    status = Column(String(20), nullable=False, default="pending")  # pending|pass|fail
+    comment = Column(Text, nullable=False, default="")
+
+    execution_step = relationship("ExecutionStep", back_populates="results")
+
+    def __repr__(self) -> str:
+        return f"<ExecutionResult {self.order_index} status={self.status}>"
+
+
