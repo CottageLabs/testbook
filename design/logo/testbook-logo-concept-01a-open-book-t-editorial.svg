@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Testbook logo concept 1A: editorial T</title>
+  <desc id="desc">A firmer open-book mark with a more typographic T and reduced curve amplitude.</desc>
+  <defs>
+    <style>
+      .t-main { fill: #1d4ed8; }
+      .page-left { fill: #eff6ff; }
+      .page-right { fill: #e2ecff; }
+      .outline { fill: none; stroke: #1e3a8a; stroke-width: 8; stroke-linejoin: round; }
+      .fold { fill: none; stroke: #1e3a8a; stroke-width: 8; stroke-linecap: round; }
+    </style>
+  </defs>
+
+  <path class="page-left" opacity="0.66" d="M40 74c30-14 56-19 84-15v122c-30-8-54-3-84 14V74Z"/>
+  <path class="page-right" opacity="0.68" d="M216 74c-30-14-56-19-84-15v122c30-8 54-3 84 14V74Z"/>
+
+  <path class="t-main" d="M48 76c28-12 54-17 80-14c26-3 52 2 80 14v12c-28-7-54-10-80-8c-26-2-52 1-80 8V76Z"/>
+  <path class="t-main" d="M116 58h24v130c0 6-5 10-12 10s-12-4-12-10V58Z"/>
+
+  <path class="outline" d="M40 74c30-14 56-19 84-15v122c-30-8-54-3-84 14V74Z"/>
+  <path class="outline" d="M216 74c-30-14-56-19-84-15v122c30-8 54-3 84 14V74Z"/>
+  <path class="fold" d="M128 58v130"/>
+</svg>
+

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Testbook logo concept 2: check book</title>
+  <desc id="desc">A simplified open book with a bold checkmark to emphasize testing and verification.</desc>
+  <defs>
+    <style>
+      .page-left { fill: #eff6ff; }
+      .page-right { fill: #ffffff; }
+      .stroke { stroke: #0f172a; stroke-width: 8; stroke-linejoin: round; stroke-linecap: round; fill: none; }
+      .check { fill: none; stroke: #10b981; stroke-width: 16; stroke-linecap: round; stroke-linejoin: round; }
+      .accent { fill: #2563eb; }
+    </style>
+  </defs>
+
+  <path class="page-left" d="M46 74c28-16 52-20 78-14v120c-28-8-50-4-78 12V74Z"/>
+  <path class="page-right" d="M210 74c-28-16-52-20-78-14v120c28-8 50-4 78 12V74Z"/>
+  <path class="stroke" d="M46 74c28-16 52-20 78-14v120c-28-8-50-4-78 12V74Z"/>
+  <path class="stroke" d="M210 74c-28-16-52-20-78-14v120c28-8 50-4 78 12V74Z"/>
+  <path class="stroke" d="M128 60v122"/>
+  <rect class="accent" x="64" y="42" width="128" height="18" rx="9"/>
+  <path class="check" d="M82 130l28 28 64-68"/>
+</svg>
+
