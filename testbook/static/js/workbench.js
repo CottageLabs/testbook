@@ -162,10 +162,11 @@ document.addEventListener('DOMContentLoaded', function() {
         return new Set();
     }
 
-    function makePlanBtn(label, action, testIds, cssClass) {
+    function makePlanBtn(label, action, testIds, cssClass, title) {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.textContent = label;
+        btn.title = title || '';
         btn.className = `btn-plan btn-plan-${cssClass}`;
         btn.addEventListener('click', function(e) {
             e.stopPropagation();
@@ -183,13 +184,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const allArr = Array.from(allIds);
         const inCount = allArr.filter(id => planTestIds.has(id)).length;
         if (inCount === 0) {
-            return [{ label: '+ Add', action: 'add', ids: allArr, cssClass: 'add' }];
+            return [{ label: '+', title: 'Add to plan', action: 'add', ids: allArr, cssClass: 'add' }];
         } else if (inCount === allArr.length) {
-            return [{ label: '− Remove', action: 'remove', ids: allArr, cssClass: 'remove' }];
+            return [{ label: '−', title: 'Remove from plan', action: 'remove', ids: allArr, cssClass: 'remove' }];
         } else {
             return [
-                { label: '+ Add all', action: 'add', ids: allArr.filter(id => !planTestIds.has(id)), cssClass: 'add' },
-                { label: '− Remove', action: 'remove', ids: allArr.filter(id => planTestIds.has(id)), cssClass: 'remove' },
+                { label: '+', title: 'Add remaining to plan', action: 'add', ids: allArr.filter(id => !planTestIds.has(id)), cssClass: 'add' },
+                { label: '−', title: 'Remove from plan', action: 'remove', ids: allArr.filter(id => planTestIds.has(id)), cssClass: 'remove' },
             ];
         }
     }
@@ -202,7 +203,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const suiteId = String(slot.dataset.forSuite);
             const allIds = suiteTestIds.get(suiteId) || new Set();
             slot.innerHTML = '';
-            planBtnDescriptors(allIds).forEach(d => slot.appendChild(makePlanBtn(d.label, d.action, d.ids, d.cssClass)));
+            planBtnDescriptors(allIds).forEach(d => slot.appendChild(makePlanBtn(d.label, d.action, d.ids, d.cssClass, d.title)));
         });
 
         // Testset slots
@@ -210,7 +211,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const tsId = String(slot.dataset.forTestset);
             const allIds = testsetTestIds.get(tsId) || new Set();
             slot.innerHTML = '';
-            planBtnDescriptors(allIds).forEach(d => slot.appendChild(makePlanBtn(d.label, d.action, d.ids, d.cssClass)));
+            planBtnDescriptors(allIds).forEach(d => slot.appendChild(makePlanBtn(d.label, d.action, d.ids, d.cssClass, d.title)));
         });
 
         // Individual test slots
@@ -218,7 +219,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const tId = String(slot.dataset.forTest);
             const allIds = new Set([tId]);
             slot.innerHTML = '';
-            planBtnDescriptors(allIds).forEach(d => slot.appendChild(makePlanBtn(d.label, d.action, d.ids, d.cssClass)));
+            planBtnDescriptors(allIds).forEach(d => slot.appendChild(makePlanBtn(d.label, d.action, d.ids, d.cssClass, d.title)));
         });
     }
 
@@ -260,7 +261,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const tIdStr = String(testId);
         const descriptors = planBtnDescriptors(new Set([tIdStr]));
         return descriptors.map(d =>
-            `<button type="button" class="btn-plan btn-plan-${escapeHtml(d.cssClass)}" data-plan-action="${escapeHtml(d.action)}" data-plan-test-ids="${escapeHtml(JSON.stringify(d.ids))}">${escapeHtml(d.label)}</button>`
+            `<button type="button" title="${escapeHtml(d.title || '')}" class="btn-plan btn-plan-${escapeHtml(d.cssClass)}" data-plan-action="${escapeHtml(d.action)}" data-plan-test-ids="${escapeHtml(JSON.stringify(d.ids))}">${escapeHtml(d.label)}</button>`
         ).join('');
     }
 
@@ -270,7 +271,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const allIds = testsetTestIds.get(tsIdStr) || new Set();
         const descriptors = planBtnDescriptors(allIds);
         return descriptors.map(d =>
-            `<button type="button" class="btn-plan btn-plan-${escapeHtml(d.cssClass)}" data-plan-action="${escapeHtml(d.action)}" data-plan-test-ids="${escapeHtml(JSON.stringify(d.ids))}">${escapeHtml(d.label)}</button>`
+            `<button type="button" title="${escapeHtml(d.title || '')}" class="btn-plan btn-plan-${escapeHtml(d.cssClass)}" data-plan-action="${escapeHtml(d.action)}" data-plan-test-ids="${escapeHtml(JSON.stringify(d.ids))}">${escapeHtml(d.label)}</button>`
         ).join('');
     }
 
