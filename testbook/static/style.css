@@ -508,6 +508,10 @@ p {
     border-radius: 10px;
 }
 
+.plan-name-form[hidden] {
+    display: none !important;
+}
+
 .plan-name-input {
     width: 100%;
     padding: 7px 9px;
