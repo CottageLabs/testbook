@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from testbook.config import reset_config
+from testbook.models import ExecutionStep, ExecutionTest, TestExecution
 
 
 def _mock_source_repo(branches=("main", "develop")):
@@ -438,6 +439,19 @@ class TestSyncRoute(unittest.TestCase):
         self.assertIn("/plans", response.location)
         self.assertIn("branch=main", response.location)
 
+    def test_sync_endpoint_redirects_to_executions_when_return_view_is_executions(self):
+        session_instance = MagicMock()
+        self.session_mock_obj.return_value = session_instance
+
+        response = self.client.post(
+            "/sync",
+            data={"branch": "main", "return_view": "executions"},
+            follow_redirects=False,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/executions", response.location)
+        self.assertIn("branch=main", response.location)
+
 
 class TestPlansRoute(unittest.TestCase):
 
@@ -578,6 +592,136 @@ class TestPlansRoute(unittest.TestCase):
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 400)
+
+
+class TestExecutionsRoute(unittest.TestCase):
+
+    def setUp(self):
+        reset_config()
+        self.cfg_patcher = patch(
+            "testbook.web.get_source_repo_config",
+            return_value={
+                "repo_name": "org/repo",
+                "default_branch": "main",
+                "tests_path": "testbook",
+                "github_token": "tok",
+            },
+        )
+        self.cfg_patcher.start()
+
+        self.repo_mock = _mock_source_repo()
+        self.repo_patcher = patch("testbook.web._make_source_repo", return_value=self.repo_mock)
+        self.repo_patcher.start()
+
+        self.session_patcher = patch("testbook.web.get_session")
+        self.session_mock_obj = self.session_patcher.start()
+
+        self.init_db_patcher = patch("testbook.web.init_db")
+        self.init_db_patcher.start()
+
+        from testbook.web import create_app
+        self.app = create_app()
+        self.app.config["TESTING"] = True
+        self.client = self.app.test_client()
+
+    def tearDown(self):
+        self.cfg_patcher.stop()
+        self.repo_patcher.stop()
+        self.session_patcher.stop()
+        self.init_db_patcher.stop()
+        reset_config()
+
+    def test_executions_route_returns_200_and_highlights_nav(self):
+        session_instance = MagicMock()
+        sync_query = MagicMock()
+        sync_query.filter_by.return_value.first.return_value = None
+
+        plans_query = MagicMock()
+        plans_query.options.return_value.filter_by.return_value.order_by.return_value.all.return_value = []
+
+        executions_query = MagicMock()
+        executions_query.options.return_value.filter_by.return_value.order_by.return_value.all.return_value = []
+
+        session_instance.query.side_effect = [sync_query, plans_query, executions_query]
+        self.session_mock_obj.return_value = session_instance
+
+        response = self.client.get("/executions")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Executions", response.data)
+        self.assertIn(b"Add Execution", response.data)
+        self.assertIn(b"subnav-link active", response.data)
+        self.assertIn(b"href=\"/executions", response.data)
+
+    def test_add_execution_creates_snapshot_and_redirects(self):
+        plan_test = SimpleNamespace(
+            id=101,
+            stable_id="auth-login-001",
+            title="Valid Login",
+            context={"role": "admin"},
+            setup_items=[SimpleNamespace(order_index=0, text="Create account")],
+            steps=[
+                SimpleNamespace(
+                    order_index=0,
+                    text="Enter credentials",
+                    path="/login",
+                    resource="",
+                    results=[SimpleNamespace(order_index=0, text="User is logged in")],
+                )
+            ],
+            testset=SimpleNamespace(name="Login", suite=SimpleNamespace(name="Auth")),
+        )
+        plan_item = SimpleNamespace(order_index=0, test=plan_test)
+        plan = SimpleNamespace(id=7, plan_items=[plan_item])
+
+        session_instance = MagicMock()
+        plan_query = MagicMock()
+        plan_query.options.return_value.filter_by.return_value.first.return_value = plan
+
+        existing_exec_query = MagicMock()
+        existing_exec_query.filter_by.return_value.order_by.return_value.first.return_value = None
+
+        session_instance.query.side_effect = [plan_query, existing_exec_query]
+
+        def capture_add(obj):
+            if isinstance(obj, TestExecution):
+                obj.id = 55
+            elif isinstance(obj, ExecutionTest):
+                obj.id = 77
+            elif isinstance(obj, ExecutionStep):
+                obj.id = 88
+
+        session_instance.add.side_effect = capture_add
+        self.session_mock_obj.return_value = session_instance
+
+        response = self.client.post(
+            "/executions/add",
+            data={"branch": "main", "plan_id": "7", "title": "Cycle 1"},
+            follow_redirects=False,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/executions", response.location)
+        self.assertIn("plan_id=7", response.location)
+        self.assertIn("execution_id=55", response.location)
+
+    def test_update_execution_renames_it(self):
+        execution = MagicMock()
+        execution.id = 9
+        execution.title = "Cycle 1"
+
+        session_instance = MagicMock()
+        session_instance.query.return_value.filter_by.return_value.first.return_value = execution
+        session_instance.commit = MagicMock()
+        session_instance.close = MagicMock()
+        self.session_mock_obj.return_value = session_instance
+
+        response = self.client.patch(
+            "/api/execution/9",
+            json={"title": "Cycle 1 - Retest"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(data["title"], "Cycle 1 - Retest")
 
 
 if __name__ == "__main__":

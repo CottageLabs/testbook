@@ -8,12 +8,16 @@ from testbook.database import get_session, init_db, sync_from_source_repo
 from testbook.github_connector import SourceRepo
 from testbook.models import (
     BranchSyncState,
+    ExecutionResult,
+    ExecutionStep,
+    ExecutionTest,
     Result,
     SetupItem,
     Step,
     Suite,
     Test,
     TestDependency,
+    TestExecution,
     TestPlan,
     TestPlanItem,
     TestSet,
@@ -269,6 +273,224 @@ def _serialize_plans(plans: list[TestPlan]) -> list[dict[str, object]]:
     return serialized
 
 
+def _serialize_executions(executions: list[TestExecution]) -> list[dict[str, object]]:
+    serialized: list[dict[str, object]] = []
+    for execution in executions:
+        raw_tests = _list_value(getattr(execution, "execution_tests", []))
+        serialized.append(
+            {
+                "id": _id_value(getattr(execution, "id", ""), ""),
+                "title": _text_value(getattr(execution, "title", ""), "Untitled execution"),
+                "tester_name": _text_value(getattr(execution, "tester_name", ""), ""),
+                "iteration": _int_value(getattr(execution, "iteration", 1), 1),
+                "test_count": len(raw_tests),
+                "is_finished": bool(getattr(execution, "is_finished", False)),
+            }
+        )
+    return serialized
+
+
+def _build_execution_suite_payload(execution: TestExecution) -> list[dict[str, object]]:
+    """Build workbench suite payload from by-value execution snapshot rows."""
+    suite_map: dict[str, dict[str, object]] = {}
+    suite_order: list[str] = []
+
+    sorted_execution_tests = sorted(
+        _list_value(getattr(execution, "execution_tests", [])),
+        key=lambda item: _order_value(getattr(item, "order_index", None), 0),
+    )
+
+    for execution_test in sorted_execution_tests:
+        suite_name = _text_value(getattr(execution_test, "source_suite_name", ""), "Uncategorised Suite")
+        testset_name = _text_value(getattr(execution_test, "source_testset_name", ""), "Uncategorised TestSet")
+        suite_key = suite_name
+        testset_key = f"{suite_name}::{testset_name}"
+
+        if suite_key not in suite_map:
+            suite_map[suite_key] = {
+                "id": f"exec-suite-{len(suite_order) + 1}",
+                "stable_id": "",
+                "name": suite_name,
+                "testsets": {},
+                "testset_order": [],
+            }
+            suite_order.append(suite_key)
+
+        suite_entry = suite_map[suite_key]
+        testsets = suite_entry["testsets"]
+        if isinstance(testsets, dict) and testset_key not in testsets:
+            order = suite_entry["testset_order"]
+            if isinstance(order, list):
+                order.append(testset_key)
+                testset_idx = len(order)
+            else:
+                testset_idx = 1
+            testsets[testset_key] = {
+                "id": f"exec-set-{suite_entry['id']}-{testset_idx}",
+                "stable_id": "",
+                "name": testset_name,
+                "tests": [],
+            }
+
+        execution_steps = sorted(
+            _list_value(getattr(execution_test, "steps", [])),
+            key=lambda item: _order_value(getattr(item, "order_index", None), 0),
+        )
+        serialized_steps: list[dict[str, object]] = []
+        for execution_step in execution_steps:
+            step_results = sorted(
+                _list_value(getattr(execution_step, "results", [])),
+                key=lambda item: _order_value(getattr(item, "order_index", None), 0),
+            )
+            serialized_steps.append(
+                {
+                    "id": _id_value(getattr(execution_step, "id", ""), ""),
+                    "text": _text_value(getattr(execution_step, "text", ""), ""),
+                    "path": _text_value(getattr(execution_step, "path", ""), ""),
+                    "resource": _text_value(getattr(execution_step, "resource", ""), ""),
+                    "resource_url": "",
+                    "results": [
+                        _text_value(getattr(result, "text", ""), "")
+                        for result in step_results
+                    ],
+                }
+            )
+
+        execution_test_dict = {
+            "id": _id_value(getattr(execution_test, "id", ""), ""),
+            "stable_id": _text_value(getattr(execution_test, "source_test_stable_id", ""), ""),
+            "title": _text_value(getattr(execution_test, "title", ""), ""),
+            "file_path": "",
+            "github_edit_url": "",
+            "context": getattr(execution_test, "context", {}) if isinstance(getattr(execution_test, "context", {}), dict) else {},
+            "setup": _list_value(getattr(execution_test, "setup", [])),
+            "steps": serialized_steps,
+        }
+        if isinstance(testsets, dict) and testset_key in testsets:
+            tests = testsets[testset_key].get("tests", [])
+            if isinstance(tests, list):
+                tests.append(execution_test_dict)
+
+    payload: list[dict[str, object]] = []
+    for suite_key in suite_order:
+        suite_entry = suite_map[suite_key]
+        ordered_testsets: list[dict[str, object]] = []
+        testsets = suite_entry.get("testsets", {})
+        for testset_key in suite_entry.get("testset_order", []):
+            if isinstance(testsets, dict) and testset_key in testsets:
+                ordered_testsets.append(testsets[testset_key])
+        payload.append(
+            {
+                "id": suite_entry["id"],
+                "stable_id": suite_entry["stable_id"],
+                "name": suite_entry["name"],
+                "testsets": ordered_testsets,
+            }
+        )
+    return payload
+
+
+def _create_execution_from_plan(
+    session,
+    *,
+    plan: TestPlan,
+    title: str,
+    tester_name: str,
+    repo_name: str,
+    branch: str,
+) -> TestExecution:
+    """Create an execution and snapshot all tests in the plan by value."""
+    existing_iteration = (
+        session.query(TestExecution)
+        .filter_by(test_plan_id=plan.id, tester_name=tester_name)
+        .order_by(TestExecution.iteration.desc(), TestExecution.id.desc())
+        .first()
+    )
+    next_iteration = (_int_value(getattr(existing_iteration, "iteration", 0), 0) + 1) if existing_iteration else 1
+
+    now = datetime.now(timezone.utc)
+    execution = TestExecution(
+        test_plan_id=plan.id,
+        title=title,
+        repo_name=repo_name,
+        branch=branch,
+        tester_name=tester_name,
+        iteration=next_iteration,
+        is_finished=False,
+        created_at=now,
+        updated_at=now,
+    )
+    session.add(execution)
+    session.flush()
+
+    sorted_items = sorted(
+        _list_value(getattr(plan, "plan_items", [])),
+        key=lambda item: _order_value(getattr(item, "order_index", None), 0),
+    )
+
+    for item_idx, item in enumerate(sorted_items):
+        source_test = getattr(item, "test", None)
+        if source_test is None:
+            continue
+        source_testset = getattr(source_test, "testset", None)
+        source_suite = getattr(source_testset, "suite", None) if source_testset else None
+
+        execution_test = ExecutionTest(
+            execution_id=execution.id,
+            source_test_id=_int_value(getattr(source_test, "id", None), None),
+            source_test_stable_id=_text_value(getattr(source_test, "stable_id", ""), ""),
+            source_suite_name=_text_value(getattr(source_suite, "name", ""), ""),
+            source_testset_name=_text_value(getattr(source_testset, "name", ""), ""),
+            title=_text_value(getattr(source_test, "title", ""), f"Test {item_idx + 1}"),
+            context=getattr(source_test, "context", {}) if isinstance(getattr(source_test, "context", {}), dict) else {},
+            setup=[
+                _text_value(getattr(setup_item, "text", ""), "")
+                for setup_item in sorted(
+                    _list_value(getattr(source_test, "setup_items", [])),
+                    key=lambda setup_item: _order_value(getattr(setup_item, "order_index", None), 0),
+                )
+                if _text_value(getattr(setup_item, "text", ""), "")
+            ],
+            order_index=item_idx,
+            status="pending",
+            comment="",
+        )
+        session.add(execution_test)
+        session.flush()
+
+        source_steps = sorted(
+            _list_value(getattr(source_test, "steps", [])),
+            key=lambda step: _order_value(getattr(step, "order_index", None), 0),
+        )
+        for step_idx, source_step in enumerate(source_steps):
+            execution_step = ExecutionStep(
+                execution_test_id=execution_test.id,
+                text=_text_value(getattr(source_step, "text", ""), ""),
+                path=_text_value(getattr(source_step, "path", ""), "") or None,
+                resource=_text_value(getattr(source_step, "resource", ""), "") or None,
+                order_index=step_idx,
+                comment="",
+            )
+            session.add(execution_step)
+            session.flush()
+
+            source_results = sorted(
+                _list_value(getattr(source_step, "results", [])),
+                key=lambda result: _order_value(getattr(result, "order_index", None), 0),
+            )
+            for result_idx, source_result in enumerate(source_results):
+                execution_result = ExecutionResult(
+                    execution_step_id=execution_step.id,
+                    text=_text_value(getattr(source_result, "text", ""), ""),
+                    order_index=result_idx,
+                    status="pending",
+                    comment="",
+                )
+                session.add(execution_result)
+
+    return execution
+
+
 def _default_render_context() -> dict[str, object]:
     return {
         "error": None,
@@ -292,6 +514,10 @@ def _default_render_context() -> dict[str, object]:
         "active_plan_id": "",
         "active_plan_title": "",
         "plan_test_ids": [],
+        "available_executions": [],
+        "executions": [],
+        "selected_execution_id": "",
+        "selected_execution_title": "",
     }
 
 
@@ -614,6 +840,223 @@ def create_app() -> Flask:
         finally:
             session.close()
 
+    @app.get("/executions")
+    def executions_index() -> str:
+        try:
+            cfg = get_source_repo_config()
+            default_branch = cfg["default_branch"]
+            selected_branch = request.args.get("branch", default_branch)
+            interval_seconds = max(60, _int_value(cfg.get("freshness_check_interval_seconds", 1800), 1800))
+            selected_plan_id_raw = request.args.get("plan_id", "").strip()
+            selected_execution_id_raw = request.args.get("execution_id", "").strip()
+
+            session = get_session()
+            sync_state = (
+                session.query(BranchSyncState)
+                .filter_by(repo_name=cfg["repo_name"], branch=selected_branch)
+                .first()
+            )
+
+            plans = (
+                session.query(TestPlan)
+                .options(joinedload(TestPlan.plan_items).joinedload(TestPlanItem.test))
+                .filter_by(repo_name=cfg["repo_name"], branch=selected_branch)
+                .order_by(TestPlan.updated_at.desc(), TestPlan.id.asc())
+                .all()
+            )
+
+            selected_plan: TestPlan | None = None
+            if selected_plan_id_raw:
+                selected_plan = next(
+                    (plan for plan in plans if str(getattr(plan, "id", "")) == selected_plan_id_raw),
+                    None,
+                )
+
+            executions = (
+                session.query(TestExecution)
+                .options(
+                    joinedload(TestExecution.execution_tests)
+                    .joinedload(ExecutionTest.steps)
+                    .joinedload(ExecutionStep.results)
+                )
+                .filter_by(repo_name=cfg["repo_name"], branch=selected_branch)
+                .order_by(TestExecution.updated_at.desc(), TestExecution.id.desc())
+                .all()
+            )
+
+            selected_execution: TestExecution | None = None
+            if selected_execution_id_raw:
+                selected_execution = next(
+                    (
+                        execution
+                        for execution in executions
+                        if str(getattr(execution, "id", "")) == selected_execution_id_raw
+                    ),
+                    None,
+                )
+
+            if selected_execution is not None and selected_plan is None:
+                selected_plan = next(
+                    (
+                        plan
+                        for plan in plans
+                        if str(getattr(plan, "id", ""))
+                        == _id_value(getattr(selected_execution, "test_plan_id", ""), "")
+                    ),
+                    None,
+                )
+
+            filtered_payload: list[dict[str, object]] = []
+            if selected_execution is not None:
+                filtered_payload = _build_execution_suite_payload(selected_execution)
+
+            branches = _make_source_repo(selected_branch).list_branches()
+            last_synced_at = _to_utc(getattr(sync_state, "last_synced_at", None))
+
+            return render_template(
+                "executions.html",
+                error=None,
+                repo_name=cfg["repo_name"],
+                branches=branches,
+                selected_branch=selected_branch,
+                suite_payload=filtered_payload,
+                available_plans=plans,
+                plans=_serialize_plans(plans),
+                available_executions=executions,
+                executions=_serialize_executions(executions),
+                selected_execution_id=_id_value(getattr(selected_execution, "id", ""), "") if selected_execution else "",
+                selected_execution_title=_text_value(getattr(selected_execution, "title", ""), ""),
+                selected_plan_id=_id_value(getattr(selected_plan, "id", ""), "") if selected_plan else "",
+                selected_plan_title=_text_value(getattr(selected_plan, "title", ""), ""),
+                active_plan_id=_id_value(getattr(selected_plan, "id", ""), "") if selected_plan else "",
+                active_plan_title=_text_value(getattr(selected_plan, "title", ""), ""),
+                plan_test_ids=[],
+                show_plan_buttons=False,
+                show_sync_button=True,
+                need_sync=False,
+                default_base_url=cfg.get("default_base_url", "http://localhost:5004/"),
+                freshness_check_interval_seconds=interval_seconds,
+                last_synced_at_iso=_iso_timestamp(last_synced_at),
+                last_synced_display=_display_timestamp(last_synced_at),
+                active_nav="executions",
+                branch_form_action="/executions",
+                return_view="executions",
+            )
+        except ConfigurationError as exc:
+            context = _default_render_context()
+            context.update(
+                {
+                    "error": str(exc),
+                    "active_nav": "executions",
+                    "branch_form_action": "/executions",
+                    "return_view": "executions",
+                }
+            )
+            return render_template("executions.html", **context)
+        except Exception as exc:
+            context = _default_render_context()
+            context.update(
+                {
+                    "error": f"GitHub error: {exc}",
+                    "active_nav": "executions",
+                    "branch_form_action": "/executions",
+                    "return_view": "executions",
+                }
+            )
+            return render_template("executions.html", **context)
+
+    @app.post("/executions/add")
+    def add_execution() -> str:
+        try:
+            cfg = get_source_repo_config()
+            selected_branch = request.form.get("branch", cfg["default_branch"])
+            plan_id_raw = request.form.get("plan_id", "").strip()
+            title = request.form.get("title", "").strip()
+            if not plan_id_raw:
+                return redirect(url_for("executions_index", branch=selected_branch))
+            plan_id_int = int(plan_id_raw)
+
+            session = get_session()
+            plan = (
+                session.query(TestPlan)
+                .options(
+                    joinedload(TestPlan.plan_items)
+                    .joinedload(TestPlanItem.test)
+                    .joinedload(Test.testset)
+                    .joinedload(TestSet.suite),
+                    joinedload(TestPlan.plan_items)
+                    .joinedload(TestPlanItem.test)
+                    .joinedload(Test.steps)
+                    .joinedload(Step.results),
+                    joinedload(TestPlan.plan_items)
+                    .joinedload(TestPlanItem.test)
+                    .joinedload(Test.setup_items),
+                )
+                .filter_by(id=plan_id_int, repo_name=cfg["repo_name"], branch=selected_branch)
+                .first()
+            )
+            if plan is None:
+                session.close()
+                return redirect(url_for("executions_index", branch=selected_branch, plan_id=plan_id_raw))
+
+            if not title:
+                count = (
+                    session.query(TestExecution)
+                    .filter_by(repo_name=cfg["repo_name"], branch=selected_branch)
+                    .count()
+                )
+                title = f"Execution {count + 1}"
+
+            execution = _create_execution_from_plan(
+                session,
+                plan=plan,
+                title=title,
+                tester_name="Unassigned",
+                repo_name=cfg["repo_name"],
+                branch=selected_branch,
+            )
+            execution.updated_at = datetime.now(timezone.utc)
+            session.commit()
+            execution_id = str(execution.id)
+            session.close()
+            return redirect(
+                url_for(
+                    "executions_index",
+                    branch=selected_branch,
+                    plan_id=plan_id_raw,
+                    execution_id=execution_id,
+                )
+            )
+        except Exception:
+            return redirect(url_for("executions_index"))
+
+    @app.patch("/api/execution/<int:execution_id>")
+    def update_execution(execution_id: int):
+        session = get_session()
+        try:
+            cfg = get_source_repo_config()
+            data = request.get_json(force=True) or {}
+            title = str(data.get("title", "")).strip()
+            if not title:
+                return jsonify({"error": "Title is required"}), 400
+
+            execution = (
+                session.query(TestExecution)
+                .filter_by(id=execution_id, repo_name=cfg["repo_name"])
+                .first()
+            )
+            if execution is None:
+                return jsonify({"error": "Execution not found"}), 404
+
+            execution.title = title
+            execution.updated_at = datetime.now(timezone.utc)
+            session.commit()
+            return jsonify({"id": execution.id, "title": execution.title})
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 500
+        finally:
+            session.close()
+
     @app.get("/api/default-base-url")
     def get_default_base_url() -> dict:
         """Return the configured default base URL for the application being tested."""
@@ -674,6 +1117,8 @@ def create_app() -> Flask:
 
             if return_view == "plans":
                 return redirect(url_for("plans_index", branch=selected_branch))
+            if return_view == "executions":
+                return redirect(url_for("executions_index", branch=selected_branch))
             return redirect(url_for("index", branch=selected_branch))
         except Exception as exc:
             error_msg = str(exc)

@@ -80,7 +80,8 @@
                href="{% if selected_branch and active_plan_id %}{{ url_for('index', branch=selected_branch, plan_id=active_plan_id) }}{% elif selected_branch %}{{ url_for('index', branch=selected_branch) }}{% else %}{{ url_for('index') }}{% endif %}">Test Suites</a>
             <a class="subnav-link {% if active_nav == 'plans' %}active{% endif %}"
                href="{% if selected_branch and active_plan_id %}{{ url_for('plans_index', branch=selected_branch, plan_id=active_plan_id) }}{% elif selected_branch %}{{ url_for('plans_index', branch=selected_branch) }}{% else %}{{ url_for('plans_index') }}{% endif %}">Test Plans</a>
-            <a class="subnav-link" href="#">Executions</a>
+            <a class="subnav-link {% if active_nav == 'executions' %}active{% endif %}"
+               href="{% if selected_branch and active_plan_id %}{{ url_for('executions_index', branch=selected_branch, plan_id=active_plan_id) }}{% elif selected_branch %}{{ url_for('executions_index', branch=selected_branch) }}{% else %}{{ url_for('executions_index') }}{% endif %}">Executions</a>
         </nav>
     </header>
 

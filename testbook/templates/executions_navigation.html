@@ -1,0 +1,62 @@
+<!-- Title row -->
+<div class="panel-title-row panel-title-row--plans">
+    <h2>Executions</h2>
+    <button type="button" id="add-execution-btn" class="btn btn-add-plan"{% if not active_plan_id %} disabled title="Select a plan in the header first"{% endif %}>+ Add Execution</button>
+</div>
+
+{% if not active_plan_id %}
+<p class="muted">Select an active plan from the header to create an execution snapshot.</p>
+{% endif %}
+
+<!-- Execution selector row -->
+<div class="plan-nav-selector-row">
+    <form id="execution-nav-form" method="get" action="/executions" class="plan-nav-form">
+        <input type="hidden" name="branch" value="{{ selected_branch }}">
+        {% if active_plan_id %}
+        <input type="hidden" name="plan_id" value="{{ active_plan_id }}">
+        {% endif %}
+        <select id="execution-nav-select" name="execution_id" onchange="this.form.submit()">
+            <option value="">-- None --</option>
+            {% for execution in available_executions %}
+            <option value="{{ execution.id }}" {% if execution.id|string == selected_execution_id|string %}selected{% endif %}>{{ execution.title }}</option>
+            {% endfor %}
+        </select>
+        <noscript><button type="submit">Go</button></noscript>
+    </form>
+    <button type="button" id="edit-execution-btn" class="btn-icon-edit" title="Rename execution"{% if not selected_execution_id %} disabled{% endif %}>✎</button>
+</div>
+
+<!-- Inline execution name form (shown on Add or Edit) -->
+<div id="execution-name-form" class="plan-name-form" hidden>
+    <input type="text" id="execution-name-input" class="plan-name-input" placeholder="Execution name..." maxlength="200" autocomplete="off">
+    <div class="plan-name-actions">
+        <button type="button" id="execution-name-confirm" class="btn btn-primary btn-sm">Save</button>
+        <button type="button" id="execution-name-cancel" class="btn btn-sm">Cancel</button>
+    </div>
+</div>
+
+<form id="add-execution-hidden-form" method="post" action="/executions/add" style="display:none">
+    <input type="hidden" name="branch" value="{{ selected_branch }}">
+    <input type="hidden" name="plan_id" value="{{ active_plan_id }}">
+    <input type="hidden" id="add-execution-title-input" name="title" value="">
+</form>
+
+<div class="panel-title-row">
+    <h2><span id="execution-nav-title">{% if selected_execution_title %}{{ selected_execution_title }}{% endif %}</span></h2>
+    {% if suite_payload %}
+    <div class="nav-controls">
+        <button class="btn-expand-all" type="button" title="Expand all">▼</button>
+        <button class="btn-collapse-all" type="button" title="Collapse all">▶</button>
+        <span class="badge">{{ suite_payload | length }}</span>
+    </div>
+    {% endif %}
+</div>
+
+{% if not selected_execution_id %}
+<p class="muted">Select an execution to view its tests.</p>
+{% else %}
+{% set empty_state_message = 'This execution does not contain any tests yet.' %}
+{% include("_suite_tree.html") %}
+{% endif %}
+
+

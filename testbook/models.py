@@ -377,6 +377,7 @@ class TestExecution(Base):
 
     id = Column(Integer, primary_key=True)
     test_plan_id = Column(Integer, ForeignKey("test_plan.id"), nullable=False, index=True)
+    title = Column(String(255), nullable=False, default="Execution")
     repo_name = Column(String(255), nullable=False, index=True)
     branch = Column(String(255), nullable=False, index=True)
     tester_name = Column(String(255), nullable=False)

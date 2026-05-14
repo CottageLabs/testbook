@@ -65,6 +65,16 @@ def _upgrade_schema(engine: Any) -> None:
     """Apply lightweight schema upgrades for existing local databases."""
     inspector = inspect(engine)
     existing_tables = inspector.get_table_names()
+
+    def _add_column_if_missing(table_name: str, column_name: str, ddl: str) -> None:
+        if table_name not in existing_tables:
+            return
+        table_columns = {c["name"] for c in inspector.get_columns(table_name)}
+        if column_name in table_columns:
+            return
+        with engine.begin() as connection:
+            connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {ddl}"))
+
     if "test" not in existing_tables:
         return
 
@@ -87,6 +97,14 @@ def _upgrade_schema(engine: Any) -> None:
         if "stable_id" not in testset_columns:
             with engine.begin() as connection:
                 connection.execute(text("ALTER TABLE testset ADD COLUMN stable_id VARCHAR(255) NOT NULL DEFAULT ''"))
+
+    # Backward compatibility for execution schema evolution.
+    # Existing local DBs may have test_execution without the later-added title column.
+    _add_column_if_missing(
+        "test_execution",
+        "title",
+        "title VARCHAR(255) NOT NULL DEFAULT 'Execution'",
+    )
 
 
 def _slugify_identity(value: object) -> str:

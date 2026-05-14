@@ -9,10 +9,10 @@ import unittest
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from testbook.database import reset_db, sync_from_source_repo
+from testbook.database import _upgrade_schema, reset_db, sync_from_source_repo
 from testbook.models import (
     Base,
     BranchSyncState,
@@ -450,6 +450,49 @@ class TestExecutionModels(unittest.TestCase):
         self.assertEqual(frozen_ex_test.title, "Valid login")
         self.assertEqual(frozen_ex_step.text, "Enter credentials")
         self.assertEqual(frozen_ex_result.text, "User is logged in")
+
+
+class TestSchemaUpgrades(unittest.TestCase):
+    """Verify backward-compatible schema upgrades for legacy DBs."""
+
+    def setUp(self):
+        self.engine = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(self.engine)
+        self.SessionLocal = sessionmaker(bind=self.engine)
+
+    def tearDown(self):
+        self.engine.dispose()
+
+    def test_upgrade_adds_missing_test_execution_title_column(self):
+        engine = create_engine("sqlite:///:memory:")
+        with engine.begin() as connection:
+            # Simulate a legacy execution table before the title column existed.
+            connection.execute(text(
+                """
+                CREATE TABLE test_execution (
+                    id INTEGER PRIMARY KEY,
+                    test_plan_id INTEGER NOT NULL,
+                    repo_name VARCHAR(255) NOT NULL,
+                    branch VARCHAR(255) NOT NULL,
+                    tester_name VARCHAR(255) NOT NULL,
+                    iteration INTEGER NOT NULL DEFAULT 1,
+                    is_finished BOOLEAN NOT NULL DEFAULT 0,
+                    comment TEXT NOT NULL DEFAULT '',
+                    created_at DATETIME NOT NULL,
+                    updated_at DATETIME NOT NULL
+                )
+                """
+            ))
+            # Required by the upgrade path guard.
+            connection.execute(text("CREATE TABLE test (id INTEGER PRIMARY KEY)"))
+
+        _upgrade_schema(engine)
+
+        with engine.connect() as connection:
+            rows = connection.execute(text("PRAGMA table_info(test_execution)")).fetchall()
+            column_names = {row[1] for row in rows}
+
+        self.assertIn("title", column_names)
 
     def test_sync_uses_yaml_test_id_when_present(self):
         mock_repo = MagicMock()

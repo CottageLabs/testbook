@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block branch_form_hidden %}
+{% if selected_execution_id %}
+<input type="hidden" name="execution_id" value="{{ selected_execution_id }}">
+{% endif %}
+{% endblock %}
+
+{% block sidebar %}
+{% include("executions_navigation.html") %}
+{% endblock %}
+
+{% block content_placeholder %}
+<h2>Execution content</h2>
+<p class="lead">Select a testset or test from the selected execution to view details.</p>
+{% endblock %}
+
+{% block page_data %}
+<script id="suite-data" type="application/json">{{ suite_payload|tojson }}</script>
+<script id="default-base-url" type="application/json">{{ default_base_url|tojson }}</script>
+<script id="selected-branch" type="application/json">{{ selected_branch|tojson }}</script>
+<script id="freshness-check-interval" type="application/json">{{ freshness_check_interval_seconds|tojson }}</script>
+<script id="active-plan-id" type="application/json">""</script>
+<script id="plan-test-ids" type="application/json">[]</script>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const addExecutionBtn = document.getElementById('add-execution-btn');
+    const editExecutionBtn = document.getElementById('edit-execution-btn');
+    const executionNameForm = document.getElementById('execution-name-form');
+    const executionNameInput = document.getElementById('execution-name-input');
+    const executionNameConfirm = document.getElementById('execution-name-confirm');
+    const executionNameCancel = document.getElementById('execution-name-cancel');
+    const addExecutionHiddenForm = document.getElementById('add-execution-hidden-form');
+    const addExecutionTitleInput = document.getElementById('add-execution-title-input');
+    const executionNavSelect = document.getElementById('execution-nav-select');
+    const executionNavTitle = document.getElementById('execution-nav-title');
+
+    let mode = null; // 'add' | 'edit'
+
+    function showNameForm(nextMode, initialValue, placeholder) {
+        mode = nextMode;
+        executionNameInput.value = initialValue;
+        executionNameInput.placeholder = placeholder;
+        executionNameForm.hidden = false;
+        addExecutionBtn.style.display = 'none';
+        if (editExecutionBtn) editExecutionBtn.style.display = 'none';
+        executionNameInput.focus();
+        if (initialValue) executionNameInput.select();
+    }
+
+    function hideNameForm() {
+        executionNameForm.hidden = true;
+        mode = null;
+        addExecutionBtn.style.display = '';
+        if (editExecutionBtn) editExecutionBtn.style.display = '';
+    }
+
+    if (addExecutionBtn) {
+        addExecutionBtn.addEventListener('click', function () {
+            showNameForm('add', '', 'New execution name...');
+        });
+    }
+
+    if (editExecutionBtn) {
+        editExecutionBtn.addEventListener('click', function () {
+            if (!executionNavSelect || !executionNavSelect.value) return;
+            const currentName = executionNavSelect.options[executionNavSelect.selectedIndex].text;
+            showNameForm('edit', currentName, 'Execution name...');
+        });
+    }
+
+    if (executionNameCancel) {
+        executionNameCancel.addEventListener('click', hideNameForm);
+    }
+
+    if (executionNameConfirm) {
+        executionNameConfirm.addEventListener('click', function () {
+            const name = executionNameInput.value.trim();
+            if (!name) {
+                executionNameInput.focus();
+                return;
+            }
+
+            if (mode === 'add') {
+                addExecutionTitleInput.value = name;
+                addExecutionHiddenForm.submit();
+            } else if (mode === 'edit') {
+                const executionId = executionNavSelect ? executionNavSelect.value : '';
+                if (!executionId) return;
+                executionNameConfirm.disabled = true;
+                fetch('/api/execution/' + encodeURIComponent(executionId), {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: name }),
+                })
+                    .then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
+                    .then(function (data) {
+                        if (executionNavSelect) {
+                            const opt = executionNavSelect.querySelector('option[value="' + executionId + '"]');
+                            if (opt) opt.textContent = data.title;
+                        }
+                        if (executionNavTitle) executionNavTitle.textContent = data.title;
+                        hideNameForm();
+                    })
+                    .catch(function () {
+                        alert('Could not rename the execution. Please try again.');
+                    })
+                    .finally(function () {
+                        executionNameConfirm.disabled = false;
+                    });
+            }
+        });
+    }
+
+    if (executionNameInput) {
+        executionNameInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                executionNameConfirm.click();
+            }
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                hideNameForm();
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
+
