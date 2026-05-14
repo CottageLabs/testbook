@@ -209,7 +209,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                         </tr>
                                         <tr class="exec-result-comment-row ${state.comment ? 'is-visible' : ''}" data-result-id="${escapeHtml(resultId)}">
                                             <td colspan="2">
-                                                <textarea class="exec-result-comment-box" placeholder="Add a comment..." data-result-id="${escapeHtml(resultId)}">${escapeHtml(state.comment)}</textarea>
+                                                <textarea class="exec-result-comment-box" placeholder="Any issues with this result..." data-result-id="${escapeHtml(resultId)}">${escapeHtml(state.comment)}</textarea>
                                             </td>
                                         </tr>
                                     `;
@@ -222,14 +222,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Step comment section
                 const stepComment = getStepComment(stepId);
                 const stepCommentHtml = `
-                    <div class="exec-step-comment-section">
-                        <div class="exec-step-comment-header">
-                            <button type="button" class="btn-step-comment-toggle" data-step-id="${escapeHtml(stepId)}">
-                                <span class="toggle-icon">${stepComment ? '−' : '+'}</span> Step Comment
-                            </button>
-                        </div>
-                        <textarea class="exec-step-comment-box ${stepComment ? '' : 'is-collapsed'}" placeholder="Add a step comment..." data-step-id="${escapeHtml(stepId)}">${escapeHtml(stepComment)}</textarea>
-                    </div>
+                    <textarea class="exec-step-comment-box ${stepComment ? '' : 'is-collapsed'}" placeholder="Any issues with this step..." data-step-id="${escapeHtml(stepId)}">${escapeHtml(stepComment)}</textarea>
                 `;
 
                 return `
@@ -237,6 +230,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="exec-step-header">
                             <span class="exec-step-number">Step ${stepIdx + 1}</span>
                             <span class="exec-step-text">${escapeHtml(step.text || '')}</span>
+                            <button type="button" class="btn-result-comment btn-step-comment-toggle ${stepComment ? 'has-comment is-open' : ''}" data-step-id="${escapeHtml(stepId)}" title="Step comment" aria-label="Toggle step comment">💬</button>
                         </div>
                         ${linksHtml}
                         ${resultsTableHtml}
@@ -275,7 +269,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const testCommentHtml = `
                 <div class="exec-test-comment-section">
                     <h4>Test Comment</h4>
-                    <textarea class="exec-test-comment-box" placeholder="Add a comment for the entire test..." data-test-id="${escapeHtml(testId)}">${escapeHtml(testStateData.comment)}</textarea>
+                    <textarea class="exec-test-comment-box" placeholder="General comments on this test ..." data-test-id="${escapeHtml(testId)}">${escapeHtml(testStateData.comment)}</textarea>
                 </div>
             `;
 
@@ -341,7 +335,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (newStatus === 'fail') {
                     // Auto-open comment box
                     const commentRow = contentRoot.querySelector(`.exec-result-comment-row[data-result-id="${resultId}"]`);
-                    if (commentRow) commentRow.classList.add('is-visible');
+                    if (commentRow) {
+                        commentRow.classList.add('is-visible');
+                        const commentBox = commentRow.querySelector('.exec-result-comment-box');
+                        if (commentBox) {
+                            commentBox.focus();
+                        }
+                    }
                 }
                 saveResultStatus(resultId, newStatus, state.comment);
             });
@@ -355,6 +355,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 const commentRow = contentRoot.querySelector(`.exec-result-comment-row[data-result-id="${resultId}"]`);
                 if (commentRow) {
                     commentRow.classList.toggle('is-visible');
+                    if (commentRow.classList.contains('is-visible')) {
+                        const commentBox = commentRow.querySelector('.exec-result-comment-box');
+                        if (commentBox) {
+                            commentBox.focus();
+                        }
+                    }
                 }
             });
         });
@@ -381,8 +387,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     const commentBox = stepBlock.querySelector('.exec-step-comment-box');
                     if (commentBox) {
                         commentBox.classList.toggle('is-collapsed');
-                        const icon = this.querySelector('.toggle-icon');
-                        if (icon) icon.textContent = commentBox.classList.contains('is-collapsed') ? '+' : '−';
+                        this.classList.toggle('is-open', !commentBox.classList.contains('is-collapsed'));
+                        if (!commentBox.classList.contains('is-collapsed')) {
+                            commentBox.focus();
+                        }
                     }
                 }
             });
@@ -394,6 +402,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 const stepId = this.dataset.stepId;
                 const comment = this.value;
                 setStepComment(stepId, comment);
+                const toggleBtn = contentRoot.querySelector(`.btn-step-comment-toggle[data-step-id="${stepId}"]`);
+                if (toggleBtn) {
+                    toggleBtn.classList.toggle('has-comment', !!comment.trim());
+                }
                 saveStepComment(stepId, comment);
             });
         });
