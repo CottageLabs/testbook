@@ -335,8 +335,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             <button type="button" class="btn-result-comment btn-step-comment-toggle ${stepComment ? 'has-comment is-open' : ''}" data-step-id="${escapeHtml(stepId)}" title="Step comment" aria-label="Toggle step comment">💬</button>
                         </div>
                         ${linksHtml}
-                        ${resultsTableHtml}
                         ${stepCommentHtml}
+                        ${resultsTableHtml}
                     </div>
                 `;
             }).join('');
