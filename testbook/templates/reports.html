@@ -19,6 +19,8 @@
 <script id="suite-data" type="application/json">{{ suite_payload|tojson }}</script>
 <script id="default-base-url" type="application/json">{{ default_base_url|tojson }}</script>
 <script id="selected-branch" type="application/json">{{ selected_branch|tojson }}</script>
+<script id="selected-plan-id" type="application/json">{{ selected_plan_id|tojson }}</script>
+<script id="selected-execution-id" type="application/json">{{ selected_execution_id|tojson }}</script>
 <script id="freshness-check-interval" type="application/json">{{ freshness_check_interval_seconds|tojson }}</script>
 <script id="active-plan-id" type="application/json">""</script>
 <script id="plan-test-ids" type="application/json">[]</script>
@@ -27,5 +29,31 @@
 
 {% block page_scripts %}
 <script src="{{ url_for('static', filename='js/execution-workbench.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+	const downloadButton = document.getElementById('download-failures-btn');
+	if (!downloadButton || downloadButton.disabled) {
+		return;
+	}
+
+	const selectedBranchNode = document.getElementById('selected-branch');
+	const selectedPlanIdNode = document.getElementById('selected-plan-id');
+	const selectedExecutionIdNode = document.getElementById('selected-execution-id');
+	const selectedBranch = selectedBranchNode ? JSON.parse(selectedBranchNode.textContent || '""') : '';
+	const selectedPlanId = selectedPlanIdNode ? JSON.parse(selectedPlanIdNode.textContent || '""') : '';
+	const selectedExecutionId = selectedExecutionIdNode ? JSON.parse(selectedExecutionIdNode.textContent || '""') : '';
+
+	downloadButton.addEventListener('click', function () {
+		if (!selectedExecutionId) {
+			return;
+		}
+		const params = new URLSearchParams();
+		if (selectedBranch) params.set('branch', selectedBranch);
+		if (selectedPlanId) params.set('plan_id', selectedPlanId);
+		params.set('execution_id', selectedExecutionId);
+		window.location.href = '/reports/download-failures?' + params.toString();
+	});
+});
+</script>
 {% endblock %}
 

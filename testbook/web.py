@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, Response, render_template, request, redirect, url_for, jsonify
 from datetime import datetime, timezone
 from sqlalchemy.orm import joinedload
 from urllib.parse import quote, urlparse
@@ -445,6 +445,135 @@ def _build_execution_suite_payload(
             }
         )
     return payload
+
+
+def _markdown_inline(value: object) -> str:
+    """Normalize text for markdown list items and escape checkbox markers."""
+    text = _text_value(value, "")
+    normalized = " ".join(text.replace("\r", "\n").split())
+    return normalized.replace("[", "\\[").replace("]", "\\]")
+
+
+def _execution_has_failed_results(execution_test: ExecutionTest) -> bool:
+    for step in _list_value(getattr(execution_test, "steps", [])):
+        for result in _list_value(getattr(step, "results", [])):
+            if _text_value(getattr(result, "status", "pending"), "pending") == "fail":
+                return True
+    return False
+
+
+def _step_has_issues(step: ExecutionStep) -> bool:
+    if _markdown_inline(getattr(step, "comment", "")):
+        return True
+    for result in _list_value(getattr(step, "results", [])):
+        if _text_value(getattr(result, "status", "pending"), "pending") == "fail":
+            return True
+    return False
+
+
+def _build_failed_tests_markdown(
+    execution: TestExecution,
+    selected_branch: str,
+    selected_plan_id_raw: str = "",
+) -> str:
+    execution_title = _markdown_inline(getattr(execution, "title", ""))
+    if not execution_title:
+        execution_title = f"Execution {_int_value(getattr(execution, 'id', 0), 0)}"
+    iteration = _int_value(getattr(execution, "iteration", 1), 1)
+
+    report_query_bits = [f"branch={quote(selected_branch, safe='')}"]
+    if selected_plan_id_raw:
+        report_query_bits.append(f"plan_id={quote(selected_plan_id_raw, safe='')}")
+    report_query_bits.append(f"execution_id={quote(str(_int_value(getattr(execution, 'id', 0), 0)), safe='')}")
+    report_query = "&".join(report_query_bits)
+    full_report_link = f"/reports?{report_query}"
+
+    lines = [
+        "# Testbook failed test report",
+        "",
+        f"- **Execution:** {execution_title} (iteration {iteration})",
+        f"- **Branch:** `{_markdown_inline(getattr(execution, 'branch', ''))}`",
+        f"- **Generated:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+        f"- **Full report:** {full_report_link}",
+        "",
+    ]
+
+    sorted_tests = sorted(
+        _list_value(getattr(execution, "execution_tests", [])),
+        key=lambda item: _order_value(getattr(item, "order_index", None), 0),
+    )
+    failing_tests = [
+        test for test in sorted_tests
+        if _normalize_execution_test_status(getattr(test, "status", "pending")) == "fail"
+        or _execution_has_failed_results(test)
+    ]
+
+    if not failing_tests:
+        lines.append("No failed tests were found for this execution.")
+        lines.append("")
+        return "\n".join(lines)
+
+    grouped: dict[tuple[str, str], list[ExecutionTest]] = {}
+    ordered_group_keys: list[tuple[str, str]] = []
+    for execution_test in failing_tests:
+        suite_name = _markdown_inline(getattr(execution_test, "source_suite_name", "")) or "Uncategorised Suite"
+        testset_name = _markdown_inline(getattr(execution_test, "source_testset_name", "")) or "Uncategorised TestSet"
+        key = (suite_name, testset_name)
+        if key not in grouped:
+            grouped[key] = []
+            ordered_group_keys.append(key)
+        grouped[key].append(execution_test)
+
+    for suite_name, testset_name in ordered_group_keys:
+        lines.append(f"## {suite_name} / {testset_name}")
+        lines.append("")
+
+        for execution_test in grouped[(suite_name, testset_name)]:
+            test_title = _markdown_inline(getattr(execution_test, "title", "") or "Untitled test")
+            test_id = _id_value(getattr(execution_test, "id", ""), "")
+            test_report_link = f"/reports?{report_query}#test/{quote(test_id, safe='')}" if test_id else full_report_link
+
+            lines.append(f"### {test_title}")
+            lines.append(f"{test_report_link}")
+            lines.append("")
+            lines.append("- [ ] All issues resolved")
+            lines.append("")
+
+            steps = sorted(
+                _list_value(getattr(execution_test, "steps", [])),
+                key=lambda item: _order_value(getattr(item, "order_index", None), 0),
+            )
+            for step_index, step in enumerate(steps, start=1):
+                step_text = _markdown_inline(getattr(step, "text", "") or f"Step {step_index}")
+                is_issue_step = _step_has_issues(step)
+                step_prefix = "- [ ]" if is_issue_step else "-"
+                lines.append(f"{step_prefix} **Step {step_index}**: {step_text}")
+
+                step_comment = _markdown_inline(getattr(step, "comment", ""))
+                if step_comment:
+                    lines.append(f"    - User comment: *{step_comment}*")
+
+                results = sorted(
+                    _list_value(getattr(step, "results", [])),
+                    key=lambda item: _order_value(getattr(item, "order_index", None), 0),
+                )
+                if results:
+                    lines.append("    - **Expected Results**:")
+                for result in results:
+                    result_text = _markdown_inline(getattr(result, "text", "") or "Expected result")
+                    result_status = _text_value(getattr(result, "status", "pending"), "pending")
+                    normalized_status = result_status.upper() if result_status in ("pass", "fail") else "PENDING"
+                    result_prefix = "        - [ ]" if result_status == "fail" else "        -"
+                    lines.append(f"{result_prefix} {result_text} ({normalized_status})")
+
+                    result_comment = _markdown_inline(getattr(result, "comment", ""))
+                    if result_comment:
+                        comment_prefix = "            - [ ]" if result_status == "fail" else "            -"
+                        lines.append(f"{comment_prefix} User comment: *{result_comment}*")
+
+            lines.append("")
+
+    return "\n".join(lines)
 
 
 def _create_execution_from_plan(
@@ -1168,6 +1297,58 @@ def create_app() -> Flask:
                 }
             )
             return render_template("reports.html", **context)
+
+    @app.get("/reports/download-failures")
+    def reports_download_failures() -> Response:
+        cfg = get_source_repo_config()
+        selected_branch = request.args.get("branch", cfg["default_branch"])
+        execution_id_raw = request.args.get("execution_id", "").strip()
+        selected_plan_id_raw = request.args.get("plan_id", "").strip()
+
+        try:
+            execution_id = int(execution_id_raw)
+        except (TypeError, ValueError):
+            return Response("An execution must be selected.", status=400, mimetype="text/plain")
+
+        session = get_session()
+        try:
+            execution = (
+                session.query(TestExecution)
+                .options(
+                    joinedload(TestExecution.execution_tests)
+                    .joinedload(ExecutionTest.steps)
+                    .joinedload(ExecutionStep.results)
+                )
+                .filter_by(
+                    id=execution_id,
+                    repo_name=cfg["repo_name"],
+                    branch=selected_branch,
+                )
+                .first()
+            )
+            if execution is None:
+                return Response("Execution not found.", status=404, mimetype="text/plain")
+
+            if selected_plan_id_raw:
+                try:
+                    selected_plan_id = int(selected_plan_id_raw)
+                except (TypeError, ValueError):
+                    return Response("Invalid plan_id.", status=400, mimetype="text/plain")
+                if _int_value(getattr(execution, "test_plan_id", 0), 0) != selected_plan_id:
+                    return Response("Execution does not belong to the selected plan.", status=404, mimetype="text/plain")
+
+            markdown = _build_failed_tests_markdown(execution, selected_branch, selected_plan_id_raw)
+            filename = f"testbook-failures-execution-{execution.id}.md"
+            return Response(
+                markdown,
+                mimetype="text/markdown",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"',
+                    "Cache-Control": "no-store",
+                },
+            )
+        finally:
+            session.close()
 
     @app.post("/executions/add")
     def add_execution() -> str:

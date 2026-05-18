@@ -32,7 +32,13 @@
 </div>
 
 <div class="reports-action-row">
-    <button type="button" class="btn btn-sm" disabled title="Download test failures as markdown">Download test failures as markdown</button>
+    <button
+        id="download-failures-btn"
+        type="button"
+        class="btn btn-sm"
+        title="Download test failures as markdown"
+        {% if not selected_execution_id %}disabled{% endif %}
+    >Download test failures as markdown</button>
     <button type="button" class="btn btn-sm" disabled title="Push test failures to GitHub">Push test failures to GitHub</button>
 </div>
 

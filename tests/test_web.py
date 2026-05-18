@@ -1036,6 +1036,79 @@ class TestExecutionsRoute(unittest.TestCase):
         self.assertIn(b'exec-nav-status exec-nav-status--skipped', response.data)
         self.assertIn(b'>skipped<', response.data)
 
+    def test_reports_download_failures_returns_markdown_attachment_for_failed_tests_only(self):
+        session_instance = MagicMock()
+
+        execution = SimpleNamespace(
+            id=9,
+            title="Cycle 1",
+            branch="main",
+            test_plan_id=7,
+            execution_tests=[
+                SimpleNamespace(
+                    id=201,
+                    source_suite_name="Auth",
+                    source_testset_name="Login",
+                    title="Failed login validation",
+                    order_index=0,
+                    status="fail",
+                    steps=[
+                        SimpleNamespace(
+                            order_index=0,
+                            text="Submit invalid credentials",
+                            comment="Unexpected 500 shown",
+                            results=[
+                                SimpleNamespace(
+                                    order_index=0,
+                                    status="fail",
+                                    text="Validation error message is shown",
+                                    comment="UI shows stack trace",
+                                ),
+                                SimpleNamespace(
+                                    order_index=1,
+                                    status="pass",
+                                    text="Username input remains visible",
+                                    comment="",
+                                ),
+                            ],
+                        )
+                    ],
+                ),
+                SimpleNamespace(
+                    id=202,
+                    source_suite_name="Auth",
+                    source_testset_name="Login",
+                    title="Passing login flow",
+                    order_index=1,
+                    status="pass",
+                    steps=[],
+                ),
+            ],
+        )
+
+        query_mock = MagicMock()
+        query_mock.options.return_value.filter_by.return_value.first.return_value = execution
+        session_instance.query.return_value = query_mock
+        self.session_mock_obj.return_value = session_instance
+
+        response = self.client.get("/reports/download-failures?branch=main&plan_id=7&execution_id=9")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("text/markdown", response.content_type)
+        self.assertIn("attachment; filename=\"testbook-failures-execution-9.md\"", response.headers.get("Content-Disposition", ""))
+        self.assertIn(b"# Testbook failed test report", response.data)
+        self.assertIn(b"- **Full report:** /reports?branch=main&plan_id=7&execution_id=9", response.data)
+        self.assertIn(b"## Auth / Login", response.data)
+        self.assertIn(b"### Failed login validation", response.data)
+        self.assertIn(b"/reports?branch=main&plan_id=7&execution_id=9#test/201", response.data)
+        self.assertIn(b"- [ ] All issues resolved", response.data)
+        self.assertIn(b"- [ ] **Step 1**: Submit invalid credentials", response.data)
+        self.assertIn(b"    - User comment: *Unexpected 500 shown*", response.data)
+        self.assertIn(b"        - [ ] Validation error message is shown (FAIL)", response.data)
+        self.assertIn(b"            - [ ] User comment: *UI shows stack trace*", response.data)
+        self.assertIn(b"        - Username input remains visible (PASS)", response.data)
+        self.assertNotIn(b"Passing login flow", response.data)
+
 
 if __name__ == "__main__":
     unittest.main()
