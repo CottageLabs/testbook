@@ -151,6 +151,29 @@ def get_server_config() -> dict[str, Any]:
     return {"port": port}
 
 
+def get_testbook_base_url() -> str:
+    """Return the testbook application base URL.
+
+    Resolution order:
+      1. ``TESTBOOK_BASE_URL`` environment variable.
+      2. ``server.testbook_base_url`` in config.yml.
+      3. Default: http://localhost:5005/
+    """
+    cfg = get_config()
+    env_url = os.environ.get("TESTBOOK_BASE_URL", "")
+    if env_url:
+        url = env_url.rstrip("/") + "/"
+        return url
+
+    section = cfg.get("server", {})
+    config_url = section.get("testbook_base_url", "")
+    if config_url:
+        url = config_url.rstrip("/") + "/"
+        return url
+
+    return "http://localhost:5005/"
+
+
 def sync_flaskenv(port: int, flaskenv_path: str = ".flaskenv") -> None:
     """Write/update FLASK_RUN_PORT in .flaskenv so `flask run` (and PyCharm's
     Flask runner) always uses the same port as config.yml.

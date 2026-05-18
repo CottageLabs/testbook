@@ -37,4 +37,8 @@ issues_repo:
 # You can also set TESTBOOK_PORT env var, or pass --port on the command line.
 server:
   port: 5005
+  # Base URL to the Testbook application itself.
+  # This is used to create absolute links in markdown failure reports and to navigate back to Testbook.
+  # You can also set TESTBOOK_BASE_URL env var instead for production.
+  testbook_base_url: "http://localhost:5005/"
 

@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import joinedload
 from urllib.parse import quote, urlparse
 
-from testbook.config import ConfigurationError, get_source_repo_config
+from testbook.config import ConfigurationError, get_source_repo_config, get_testbook_base_url
 from testbook.database import get_session, init_db, sync_from_source_repo
 from testbook.github_connector import SourceRepo
 from testbook.models import (
@@ -486,7 +486,8 @@ def _build_failed_tests_markdown(
         report_query_bits.append(f"plan_id={quote(selected_plan_id_raw, safe='')}")
     report_query_bits.append(f"execution_id={quote(str(_int_value(getattr(execution, 'id', 0), 0)), safe='')}")
     report_query = "&".join(report_query_bits)
-    full_report_link = f"/reports?{report_query}"
+    testbook_url = get_testbook_base_url().rstrip("/")
+    full_report_link = f"{testbook_url}/reports?{report_query}"
 
     lines = [
         "# Testbook failed test report",
@@ -494,7 +495,7 @@ def _build_failed_tests_markdown(
         f"- **Execution:** {execution_title} (iteration {iteration})",
         f"- **Branch:** `{_markdown_inline(getattr(execution, 'branch', ''))}`",
         f"- **Generated:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
-        f"- **Full report:** {full_report_link}",
+        f"- **Full report:** [{full_report_link}]({full_report_link})",
         "",
     ]
 
@@ -531,10 +532,10 @@ def _build_failed_tests_markdown(
         for execution_test in grouped[(suite_name, testset_name)]:
             test_title = _markdown_inline(getattr(execution_test, "title", "") or "Untitled test")
             test_id = _id_value(getattr(execution_test, "id", ""), "")
-            test_report_link = f"/reports?{report_query}#test/{quote(test_id, safe='')}" if test_id else full_report_link
+            test_report_link = f"{testbook_url}/reports?{report_query}#test/{quote(test_id, safe='')}" if test_id else full_report_link
 
             lines.append(f"### {test_title}")
-            lines.append(f"{test_report_link}")
+            lines.append(f"[View in Testbook]({test_report_link})")
             lines.append("")
             lines.append("- [ ] All issues resolved")
             lines.append("")
