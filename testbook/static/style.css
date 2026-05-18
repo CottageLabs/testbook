@@ -450,6 +450,13 @@ p {
     margin-bottom: 12px;
 }
 
+.reports-action-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 0 0 12px;
+}
+
 .plan-nav-form {
     flex: 1;
     min-width: 0;

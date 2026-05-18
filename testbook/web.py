@@ -294,6 +294,12 @@ def _serialize_executions(executions: list[TestExecution]) -> list[dict[str, obj
     serialized: list[dict[str, object]] = []
     for execution in executions:
         raw_tests = _list_value(getattr(execution, "execution_tests", []))
+        status_counts = {"pass": 0, "fail": 0, "skipped": 0, "pending": 0}
+        for test in raw_tests:
+            status = _text_value(getattr(test, "status", "pending"), "pending")
+            if status not in status_counts:
+                status = "pending"
+            status_counts[status] += 1
         serialized.append(
             {
                 "id": _id_value(getattr(execution, "id", ""), ""),
@@ -303,6 +309,15 @@ def _serialize_executions(executions: list[TestExecution]) -> list[dict[str, obj
                 "test_count": len(raw_tests),
                 "is_finished": bool(getattr(execution, "is_finished", False)),
                 "feedback_url": _text_value(getattr(execution, "feedback_url", ""), ""),
+                "pass_count": status_counts["pass"],
+                "fail_count": status_counts["fail"],
+                "skipped_count": status_counts["skipped"],
+                "pending_count": status_counts["pending"],
+                "display_label": (
+                    f"{_text_value(getattr(execution, 'title', ''), 'Untitled execution')} "
+                    f"(iter {_int_value(getattr(execution, 'iteration', 1), 1)}) — "
+                    f"P{status_counts['pass']}/F{status_counts['fail']}/S{status_counts['skipped']}/T{status_counts['pending']}"
+                ),
             }
         )
     return serialized
@@ -560,10 +575,12 @@ def _default_render_context() -> dict[str, object]:
         "plan_test_ids": [],
         "available_executions": [],
         "executions": [],
+        "execution_summaries": [],
         "selected_execution_id": "",
         "selected_execution_title": "",
         "selected_execution_feedback_url": "",
         "show_execution_statuses": False,
+        "read_only_mode": False,
     }
 
 
@@ -918,7 +935,7 @@ def create_app() -> Flask:
                     None,
                 )
 
-            executions = (
+            executions_query = (
                 session.query(TestExecution)
                 .options(
                     joinedload(TestExecution.execution_tests)
@@ -926,9 +943,11 @@ def create_app() -> Flask:
                     .joinedload(ExecutionStep.results)
                 )
                 .filter_by(repo_name=cfg["repo_name"], branch=selected_branch)
-                .order_by(TestExecution.updated_at.desc(), TestExecution.id.desc())
-                .all()
             )
+            if selected_plan is not None:
+                executions_query = executions_query.filter_by(test_plan_id=selected_plan.id)
+
+            executions = executions_query.order_by(TestExecution.updated_at.desc(), TestExecution.id.desc()).all()
 
             selected_execution: TestExecution | None = None
             if selected_execution_id_raw:
@@ -1015,6 +1034,140 @@ def create_app() -> Flask:
                 }
             )
             return render_template("executions.html", **context)
+
+    @app.get("/reports")
+    def reports_index() -> str:
+        try:
+            cfg = get_source_repo_config()
+            default_branch = cfg["default_branch"]
+            selected_branch = request.args.get("branch", default_branch)
+            interval_seconds = max(60, _int_value(cfg.get("freshness_check_interval_seconds", 1800), 1800))
+            selected_plan_id_raw = request.args.get("plan_id", "").strip()
+            selected_execution_id_raw = request.args.get("execution_id", "").strip()
+
+            session = get_session()
+            sync_state = (
+                session.query(BranchSyncState)
+                .filter_by(repo_name=cfg["repo_name"], branch=selected_branch)
+                .first()
+            )
+
+            plans = (
+                session.query(TestPlan)
+                .options(joinedload(TestPlan.plan_items).joinedload(TestPlanItem.test))
+                .filter_by(repo_name=cfg["repo_name"], branch=selected_branch)
+                .order_by(TestPlan.updated_at.desc(), TestPlan.id.asc())
+                .all()
+            )
+
+            selected_plan: TestPlan | None = None
+            if selected_plan_id_raw:
+                selected_plan = next(
+                    (plan for plan in plans if str(getattr(plan, "id", "")) == selected_plan_id_raw),
+                    None,
+                )
+
+            executions = (
+                session.query(TestExecution)
+                .options(
+                    joinedload(TestExecution.execution_tests)
+                    .joinedload(ExecutionTest.steps)
+                    .joinedload(ExecutionStep.results)
+                )
+                .filter_by(repo_name=cfg["repo_name"], branch=selected_branch)
+                .order_by(TestExecution.updated_at.desc(), TestExecution.id.desc())
+                .all()
+            )
+
+            selected_execution: TestExecution | None = None
+            if selected_execution_id_raw:
+                selected_execution = next(
+                    (
+                        execution
+                        for execution in executions
+                        if str(getattr(execution, "id", "")) == selected_execution_id_raw
+                    ),
+                    None,
+                )
+
+            if selected_execution is not None and selected_plan is None:
+                selected_plan = next(
+                    (
+                        plan
+                        for plan in plans
+                        if str(getattr(plan, "id", "")) == _id_value(getattr(selected_execution, "test_plan_id", ""), "")
+                    ),
+                    None,
+                )
+
+            filtered_payload: list[dict[str, object]] = []
+            if selected_execution is not None:
+                filtered_payload = _build_execution_suite_payload(
+                    selected_execution,
+                    _text_value(cfg.get("resources_path", ""), ""),
+                )
+
+            branches = _make_source_repo(selected_branch).list_branches()
+            last_synced_at = _to_utc(getattr(sync_state, "last_synced_at", None))
+
+            return render_template(
+                "reports.html",
+                error=None,
+                repo_name=cfg["repo_name"],
+                branches=branches,
+                selected_branch=selected_branch,
+                suite_payload=filtered_payload,
+                available_plans=plans,
+                plans=_serialize_plans(plans),
+                available_executions=executions,
+                execution_summaries=_serialize_executions(executions),
+                selected_execution_id=_id_value(getattr(selected_execution, "id", ""), "") if selected_execution else "",
+                selected_execution_title=_text_value(getattr(selected_execution, "title", ""), ""),
+                selected_execution_feedback_url=_text_value(getattr(selected_execution, "feedback_url", ""), ""),
+                selected_plan_id=_id_value(getattr(selected_plan, "id", ""), "") if selected_plan else "",
+                selected_plan_title=_text_value(getattr(selected_plan, "title", ""), ""),
+                active_plan_id=_id_value(getattr(selected_plan, "id", ""), "") if selected_plan else "",
+                active_plan_title=_text_value(getattr(selected_plan, "title", ""), ""),
+                plan_test_ids=[],
+                show_plan_buttons=False,
+                show_execution_statuses=True,
+                show_sync_button=True,
+                need_sync=False,
+                default_base_url=cfg.get("default_base_url", "http://localhost:5004/"),
+                freshness_check_interval_seconds=interval_seconds,
+                last_synced_at_iso=_iso_timestamp(last_synced_at),
+                last_synced_display=_display_timestamp(last_synced_at),
+                active_nav="reports",
+                branch_form_action="/reports",
+                return_view="reports",
+                read_only_mode=True,
+            )
+        except ConfigurationError as exc:
+            context = _default_render_context()
+            context.update(
+                {
+                    "error": str(exc),
+                    "active_nav": "reports",
+                    "branch_form_action": "/reports",
+                    "return_view": "reports",
+                    "show_execution_statuses": True,
+                    "read_only_mode": True,
+                }
+            )
+            return render_template("reports.html", **context)
+        except Exception as exc:
+            context = _default_render_context()
+            context.update(
+                {
+                    "error": f"GitHub error: {exc}",
+                    "active_nav": "reports",
+                    "branch_form_action": "/reports",
+                    "return_view": "reports",
+                    "show_execution_statuses": True,
+                    "read_only_mode": True,
+                }
+            )
+            return render_template("reports.html", **context)
 
     @app.post("/executions/add")
     def add_execution() -> str:

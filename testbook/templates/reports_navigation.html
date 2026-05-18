@@ -1,0 +1,49 @@
+<!-- Title row -->
+<div class="panel-title-row panel-title-row--plans">
+    <h2>Reports</h2>
+</div>
+
+{% if selected_plan_title %}
+<p class="active-plan-indicator exec-active-plan-indicator">
+    <span class="active-plan-label">Reporting on plan:</span>
+    <span class="active-plan-name">{{ selected_plan_title }}</span>
+</p>
+{% endif %}
+
+{% if not selected_plan_id %}
+<p class="muted">Select a plan in the header first, then choose an execution report.</p>
+{% endif %}
+
+<!-- Execution selector row -->
+<div class="plan-nav-selector-row">
+    <form id="execution-nav-form" method="get" action="/reports" class="plan-nav-form">
+        <input type="hidden" name="branch" value="{{ selected_branch }}">
+        {% if active_plan_id %}
+        <input type="hidden" name="plan_id" value="{{ active_plan_id }}">
+        {% endif %}
+        <select id="execution-nav-select" name="execution_id" onchange="this.form.submit()">
+            <option value="">-- None --</option>
+            {% for execution in execution_summaries %}
+            <option value="{{ execution.id }}" data-feedback-url="{{ execution.feedback_url or '' }}" {% if execution.id|string == selected_execution_id|string %}selected{% endif %}>{{ execution.display_label }}</option>
+            {% endfor %}
+        </select>
+        <noscript><button type="submit">Go</button></noscript>
+    </form>
+</div>
+
+<div class="reports-action-row">
+    <button type="button" class="btn btn-sm" disabled title="Download test failures as markdown">Download test failures as markdown</button>
+    <button type="button" class="btn btn-sm" disabled title="Push test failures to GitHub">Push test failures to GitHub</button>
+</div>
+
+<p id="execution-feedback-row" class="muted"{% if not selected_execution_feedback_url %} hidden{% endif %}>
+    Feedback: <a id="execution-feedback-link" href="{{ selected_execution_feedback_url or '#' }}" target="_blank" rel="noopener noreferrer">{{ selected_execution_feedback_url }}</a>
+</p>
+
+{% if not selected_execution_id %}
+<p class="muted">Select an execution to view its report.</p>
+{% else %}
+{% set empty_state_message = 'This execution does not contain any tests yet.' %}
+{% include("_suite_tree.html") %}
+{% endif %}
+

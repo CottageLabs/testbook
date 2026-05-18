@@ -798,15 +798,55 @@ class TestExecutionsRoute(unittest.TestCase):
         executions_query = MagicMock()
         executions_query.options.return_value.filter_by.return_value.order_by.return_value.all.return_value = [execution]
 
-        session_instance.query.side_effect = [sync_query, plans_query, executions_query]
+        def query_side_effect(model):
+            if model.__name__ == "BranchSyncState":
+                return sync_query
+            if model.__name__ == "TestPlan":
+                return plans_query
+            if model.__name__ == "TestExecution":
+                return executions_query
+            return MagicMock()
+
+        session_instance.query.side_effect = query_side_effect
         self.session_mock_obj.return_value = session_instance
 
-        response = self.client.get("/executions?plan_id=7&execution_id=9")
+        response = self.client.get("/reports?plan_id=7&execution_id=9")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Feedback:", response.data)
         self.assertIn(b'href="https://github.com/org/repo/issues/42"', response.data)
 
     def test_executions_route_serializes_github_blob_url_for_step_resources(self):
+        execution = SimpleNamespace(
+            repo_name="org/repo",
+            branch="main",
+            execution_tests=[
+                SimpleNamespace(
+                    id=301,
+                    order_index=0,
+                    steps=[
+                        SimpleNamespace(
+                            id=401,
+                            text="Open resource",
+                            resource="fixtures/manuals/login.md",
+                            order_index=0,
+                            comment="",
+                            results=[],
+                        )
+                    ],
+                    source_suite_name="Auth",
+                    source_testset_name="Login",
+                )
+            ],
+        )
+        from testbook.web import _build_execution_suite_payload
+
+        payload = _build_execution_suite_payload(execution, "doajtest")
+        self.assertEqual(
+            payload[0]["testsets"][0]["tests"][0]["steps"][0]["resource_url"],
+            "https://github.com/org/repo/blob/main/doajtest/fixtures/manuals/login.md",
+        )
+
+    def test_reports_route_returns_200_and_shows_execution_summary(self):
         session_instance = MagicMock()
         sync_query = MagicMock()
         sync_query.filter_by.return_value.first.return_value = None
@@ -818,31 +858,60 @@ class TestExecutionsRoute(unittest.TestCase):
         execution = SimpleNamespace(
             id=9,
             title="Cycle 1",
-            feedback_url="",
+            feedback_url="https://github.com/org/repo/issues/42",
             execution_tests=[
                 SimpleNamespace(
-                    id=301,
+                    id=201,
                     source_test_stable_id="auth-1",
                     source_suite_name="Auth",
                     source_testset_name="Login",
-                    title="Resource test",
+                    title="Passed test",
                     context={},
                     setup=[],
                     order_index=0,
+                    status="pass",
+                    comment="",
+                    steps=[],
+                ),
+                SimpleNamespace(
+                    id=202,
+                    source_test_stable_id="auth-2",
+                    source_suite_name="Auth",
+                    source_testset_name="Login",
+                    title="Failed test",
+                    context={},
+                    setup=[],
+                    order_index=1,
+                    status="fail",
+                    comment="",
+                    steps=[],
+                ),
+                SimpleNamespace(
+                    id=203,
+                    source_test_stable_id="auth-3",
+                    source_suite_name="Auth",
+                    source_testset_name="Login",
+                    title="Skipped test",
+                    context={},
+                    setup=[],
+                    order_index=2,
+                    status="skipped",
+                    comment="",
+                    steps=[],
+                ),
+                SimpleNamespace(
+                    id=204,
+                    source_test_stable_id="auth-4",
+                    source_suite_name="Auth",
+                    source_testset_name="Login",
+                    title="Todo test",
+                    context={},
+                    setup=[],
+                    order_index=3,
                     status="pending",
                     comment="",
-                    steps=[
-                        SimpleNamespace(
-                            id=401,
-                            text="Open resource",
-                            path="",
-                            resource="fixtures/manuals/login.md",
-                            order_index=0,
-                            comment="",
-                            results=[],
-                        )
-                    ],
-                )
+                    steps=[],
+                ),
             ],
             test_plan_id=7,
             repo_name="org/repo",
@@ -851,26 +920,26 @@ class TestExecutionsRoute(unittest.TestCase):
         executions_query = MagicMock()
         executions_query.options.return_value.filter_by.return_value.order_by.return_value.all.return_value = [execution]
 
-        session_instance.query.side_effect = [sync_query, plans_query, executions_query]
+        def query_side_effect(model):
+            if model.__name__ == "BranchSyncState":
+                return sync_query
+            if model.__name__ == "TestPlan":
+                return plans_query
+            if model.__name__ == "TestExecution":
+                return executions_query
+            return MagicMock()
+
+        session_instance.query.side_effect = query_side_effect
         self.session_mock_obj.return_value = session_instance
 
-        with patch(
-            "testbook.web.get_source_repo_config",
-            return_value={
-                "repo_name": "org/repo",
-                "default_branch": "main",
-                "tests_path": "testbook",
-                "resources_path": "doajtest",
-                "github_token": "tok",
-            },
-        ):
-            response = self.client.get("/executions?plan_id=7&execution_id=9")
-
+        response = self.client.get("/reports?branch=main&plan_id=7&execution_id=9")
         self.assertEqual(response.status_code, 200)
-        self.assertIn(
-            b"https://github.com/org/repo/blob/main/doajtest/fixtures/manuals/login.md",
-            response.data,
-        )
+        self.assertIn(b"Reports", response.data)
+        self.assertIn(b"Download test failures as markdown", response.data)
+        self.assertIn(b"Push test failures to GitHub", response.data)
+        self.assertIn(b"Cycle 1 (iter 1)", response.data)
+        self.assertIn(b"P1/F1/S1/T1", response.data)
+        self.assertIn(b"read-only-mode", response.data)
 
     def test_executions_route_displays_test_status_badges_in_navigation(self):
         session_instance = MagicMock()
@@ -944,10 +1013,19 @@ class TestExecutionsRoute(unittest.TestCase):
         executions_query = MagicMock()
         executions_query.options.return_value.filter_by.return_value.order_by.return_value.all.return_value = [execution]
 
-        session_instance.query.side_effect = [sync_query, plans_query, executions_query]
+        def query_side_effect(model):
+            if model.__name__ == "BranchSyncState":
+                return sync_query
+            if model.__name__ == "TestPlan":
+                return plans_query
+            if model.__name__ == "TestExecution":
+                return executions_query
+            return MagicMock()
+
+        session_instance.query.side_effect = query_side_effect
         self.session_mock_obj.return_value = session_instance
 
-        response = self.client.get("/executions?plan_id=7&execution_id=9")
+        response = self.client.get("/reports?plan_id=7&execution_id=9")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'exec-nav-status exec-nav-status--pass', response.data)
         self.assertIn(b'>pass<', response.data)

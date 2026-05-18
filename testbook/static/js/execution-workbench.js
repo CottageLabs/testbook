@@ -18,6 +18,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const defaultBaseUrl = defaultBaseUrlNode ? JSON.parse(defaultBaseUrlNode.textContent || '"http://localhost:5004/"') : 'http://localhost:5004/';
     const selectedBranchNode = document.getElementById('selected-branch');
     const selectedBranch = selectedBranchNode ? JSON.parse(selectedBranchNode.textContent || '""') : '';
+    const readOnlyModeNode = document.getElementById('read-only-mode');
+    const readOnlyMode = readOnlyModeNode ? JSON.parse(readOnlyModeNode.textContent || 'false') : false;
 
     const contentRoot = document.getElementById('test-content-root');
     const appMain = document.querySelector('.app-main');
@@ -297,21 +299,23 @@ document.addEventListener('DOMContentLoaded', function() {
                                     const resultText = typeof result === 'string' ? result : String(result.text || '');
                                     const state = getResultState(resultId);
                                     const commentOpen = state.comment ? 'comment-open' : '';
-                                    return `
+                                                    const disabledAttr = readOnlyMode ? 'disabled aria-disabled="true"' : '';
+                                                    const readonlyAttr = readOnlyMode ? 'readonly' : '';
+                                                    return `
                                         <tr class="exec-result-row ${commentOpen}" data-result-id="${escapeHtml(resultId)}">
                                             <td class="exec-result-text">${escapeHtml(resultText)}</td>
                                             <td class="exec-result-actions">
-                                                <button type="button" class="btn-result btn-result-pass ${state.status === 'pass' ? 'is-active' : ''}" 
+                                                                                <button type="button" class="btn-result btn-result-pass ${state.status === 'pass' ? 'is-active' : ''}" ${disabledAttr}
                                                         data-result-id="${escapeHtml(resultId)}" title="Mark as Pass">✓</button>
-                                                <button type="button" class="btn-result btn-result-fail ${state.status === 'fail' ? 'is-active' : ''}" 
+                                                                                <button type="button" class="btn-result btn-result-fail ${state.status === 'fail' ? 'is-active' : ''}" ${disabledAttr}
                                                         data-result-id="${escapeHtml(resultId)}" title="Mark as Fail">✗</button>
-                                                <button type="button" class="btn-result-comment ${state.comment ? 'has-comment' : ''}" 
+                                                                                <button type="button" class="btn-result-comment ${state.comment ? 'has-comment' : ''}" 
                                                         data-result-id="${escapeHtml(resultId)}" data-step-id="${escapeHtml(stepId)}" title="Comment">💬</button>
                                             </td>
                                         </tr>
                                         <tr class="exec-result-comment-row ${state.comment ? 'is-visible' : ''}" data-result-id="${escapeHtml(resultId)}">
                                             <td colspan="2">
-                                                <textarea class="exec-result-comment-box" placeholder="Any issues with this result..." data-result-id="${escapeHtml(resultId)}">${escapeHtml(state.comment)}</textarea>
+                                                                                <textarea class="exec-result-comment-box" placeholder="Any issues with this result..." data-result-id="${escapeHtml(resultId)}" ${readonlyAttr}>${escapeHtml(state.comment)}</textarea>
                                             </td>
                                         </tr>
                                     `;
@@ -324,7 +328,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Step comment section
                 const stepComment = getStepComment(stepId);
                 const stepCommentHtml = `
-                    <textarea class="exec-step-comment-box ${stepComment ? '' : 'is-collapsed'}" placeholder="Any issues with this step..." data-step-id="${escapeHtml(stepId)}">${escapeHtml(stepComment)}</textarea>
+                        <textarea class="exec-step-comment-box ${stepComment ? '' : 'is-collapsed'}" placeholder="Any issues with this step..." data-step-id="${escapeHtml(stepId)}" ${readOnlyMode ? 'readonly' : ''}>${escapeHtml(stepComment)}</textarea>
                 `;
 
                 return `
@@ -354,18 +358,18 @@ document.addEventListener('DOMContentLoaded', function() {
             const testStatusBtnsHtml = `
                 <div class="exec-test-status-section">
                     <div class="exec-test-status-label">Test Result:</div>
-                    <button type="button" class="btn-test-status btn-test-pass ${hasFailResult ? 'is-disabled' : ''} ${effectiveTestStatus === 'pass' && !hasFailResult ? 'is-active' : ''}" 
+                    <button type="button" class="btn-test-status btn-test-pass ${hasFailResult ? 'is-disabled' : ''} ${effectiveTestStatus === 'pass' && !hasFailResult ? 'is-active' : ''}" ${readOnlyMode || hasFailResult ? 'disabled' : ''}
                             data-test-id="${escapeHtml(testId)}" 
                             title="${hasFailResult ? 'Disable because test has failing results' : 'Mark entire test as Pass'}"
-                            ${hasFailResult ? 'disabled' : ''}>
+                            >
                         Pass
                     </button>
-                    <button type="button" class="btn-test-status btn-test-fail ${effectiveTestStatus === 'fail' ? 'is-active' : ''}" 
+                    <button type="button" class="btn-test-status btn-test-fail ${effectiveTestStatus === 'fail' ? 'is-active' : ''}" ${readOnlyMode ? 'disabled' : ''}
                             data-test-id="${escapeHtml(testId)}"
                             title="Mark entire test as Fail">
                         Fail
                     </button>
-                    <button type="button" class="btn-test-status btn-test-skipped ${effectiveTestStatus === 'skipped' ? 'is-active' : ''}" 
+                    <button type="button" class="btn-test-status btn-test-skipped ${effectiveTestStatus === 'skipped' ? 'is-active' : ''}" ${readOnlyMode ? 'disabled' : ''}
                             data-test-id="${escapeHtml(testId)}"
                             title="Mark entire test as Skipped">
                         Skipped
@@ -377,7 +381,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const testCommentHtml = `
                 <div class="exec-test-comment-section">
                     <h4>Test Comment</h4>
-                    <textarea class="exec-test-comment-box" placeholder="General comments on this test ..." data-test-id="${escapeHtml(testId)}">${escapeHtml(testStateData.comment)}</textarea>
+                    <textarea class="exec-test-comment-box" placeholder="General comments on this test ..." data-test-id="${escapeHtml(testId)}" ${readOnlyMode ? 'readonly' : ''}>${escapeHtml(testStateData.comment)}</textarea>
                 </div>
             `;
 
@@ -420,7 +424,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!contentRoot) return;
 
         // Result pass/fail buttons
-        contentRoot.querySelectorAll('.btn-result-pass').forEach(btn => {
+        if (!readOnlyMode) contentRoot.querySelectorAll('.btn-result-pass').forEach(btn => {
             btn.addEventListener('click', function(e) {
                 e.preventDefault();
                 const resultId = this.dataset.resultId;
@@ -441,7 +445,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
 
-        contentRoot.querySelectorAll('.btn-result-fail').forEach(btn => {
+        if (!readOnlyMode) contentRoot.querySelectorAll('.btn-result-fail').forEach(btn => {
             btn.addEventListener('click', function(e) {
                 e.preventDefault();
                 const resultId = this.dataset.resultId;
@@ -493,7 +497,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         // Result comment text areas
-        contentRoot.querySelectorAll('.exec-result-comment-box').forEach(textarea => {
+        if (!readOnlyMode) contentRoot.querySelectorAll('.exec-result-comment-box').forEach(textarea => {
             textarea.addEventListener('change', function() {
                 const resultId = this.dataset.resultId;
                 const state = getResultState(resultId);
@@ -524,7 +528,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         // Step comment text areas
-        contentRoot.querySelectorAll('.exec-step-comment-box').forEach(textarea => {
+        if (!readOnlyMode) contentRoot.querySelectorAll('.exec-step-comment-box').forEach(textarea => {
             textarea.addEventListener('change', function() {
                 const stepId = this.dataset.stepId;
                 const comment = this.value;
@@ -538,7 +542,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         // Test pass/fail/skipped buttons
-        contentRoot.querySelectorAll('.btn-test-status').forEach(btn => {
+        if (!readOnlyMode) contentRoot.querySelectorAll('.btn-test-status').forEach(btn => {
             btn.addEventListener('click', function(e) {
                 e.preventDefault();
                 if (this.disabled) return;
@@ -559,7 +563,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         // Test comment text areas
-        contentRoot.querySelectorAll('.exec-test-comment-box').forEach(textarea => {
+        if (!readOnlyMode) contentRoot.querySelectorAll('.exec-test-comment-box').forEach(textarea => {
             textarea.addEventListener('change', function() {
                 const testId = this.dataset.testId;
                 const comment = this.value;
