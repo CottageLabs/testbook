@@ -308,7 +308,10 @@ def _serialize_executions(executions: list[TestExecution]) -> list[dict[str, obj
     return serialized
 
 
-def _build_execution_suite_payload(execution: TestExecution) -> list[dict[str, object]]:
+def _build_execution_suite_payload(
+    execution: TestExecution,
+    resources_path: str = "",
+) -> list[dict[str, object]]:
     """Build workbench suite payload from by-value execution snapshot rows."""
     suite_map: dict[str, dict[str, object]] = {}
     suite_order: list[str] = []
@@ -360,13 +363,26 @@ def _build_execution_suite_payload(execution: TestExecution) -> list[dict[str, o
                 _list_value(getattr(execution_step, "results", [])),
                 key=lambda item: _order_value(getattr(item, "order_index", None), 0),
             )
+            resource_path = _text_value(getattr(execution_step, "resource", ""), "")
+            base_resources_path = _text_value(resources_path, "").strip("/")
+            normalized_resource_path = resource_path.strip("/")
+            resource_repo_path = normalized_resource_path
+            if base_resources_path and normalized_resource_path:
+                resource_repo_path = f"{base_resources_path}/{normalized_resource_path}"
+            elif base_resources_path:
+                resource_repo_path = base_resources_path
             serialized_steps.append(
                 {
                     "id": _id_value(getattr(execution_step, "id", ""), ""),
                     "text": _text_value(getattr(execution_step, "text", ""), ""),
                     "path": _text_value(getattr(execution_step, "path", ""), ""),
-                    "resource": _text_value(getattr(execution_step, "resource", ""), ""),
-                    "resource_url": "",
+                    "resource": resource_path,
+                    "resource_url": _github_file_url(
+                        _text_value(getattr(execution, "repo_name", ""), ""),
+                        _text_value(getattr(execution, "branch", ""), ""),
+                        resource_repo_path,
+                        "blob",
+                    ),
                     "comment": _text_value(getattr(execution_step, "comment", ""), ""),
                     "results": [
                         {
@@ -938,7 +954,10 @@ def create_app() -> Flask:
 
             filtered_payload: list[dict[str, object]] = []
             if selected_execution is not None:
-                filtered_payload = _build_execution_suite_payload(selected_execution)
+                filtered_payload = _build_execution_suite_payload(
+                    selected_execution,
+                    _text_value(cfg.get("resources_path", ""), ""),
+                )
 
             branches = _make_source_repo(selected_branch).list_branches()
             last_synced_at = _to_utc(getattr(sync_state, "last_synced_at", None))

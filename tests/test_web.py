@@ -806,6 +806,72 @@ class TestExecutionsRoute(unittest.TestCase):
         self.assertIn(b"Feedback:", response.data)
         self.assertIn(b'href="https://github.com/org/repo/issues/42"', response.data)
 
+    def test_executions_route_serializes_github_blob_url_for_step_resources(self):
+        session_instance = MagicMock()
+        sync_query = MagicMock()
+        sync_query.filter_by.return_value.first.return_value = None
+
+        plan = SimpleNamespace(id=7, title="Smoke Plan", plan_items=[])
+        plans_query = MagicMock()
+        plans_query.options.return_value.filter_by.return_value.order_by.return_value.all.return_value = [plan]
+
+        execution = SimpleNamespace(
+            id=9,
+            title="Cycle 1",
+            feedback_url="",
+            execution_tests=[
+                SimpleNamespace(
+                    id=301,
+                    source_test_stable_id="auth-1",
+                    source_suite_name="Auth",
+                    source_testset_name="Login",
+                    title="Resource test",
+                    context={},
+                    setup=[],
+                    order_index=0,
+                    status="pending",
+                    comment="",
+                    steps=[
+                        SimpleNamespace(
+                            id=401,
+                            text="Open resource",
+                            path="",
+                            resource="fixtures/manuals/login.md",
+                            order_index=0,
+                            comment="",
+                            results=[],
+                        )
+                    ],
+                )
+            ],
+            test_plan_id=7,
+            repo_name="org/repo",
+            branch="main",
+        )
+        executions_query = MagicMock()
+        executions_query.options.return_value.filter_by.return_value.order_by.return_value.all.return_value = [execution]
+
+        session_instance.query.side_effect = [sync_query, plans_query, executions_query]
+        self.session_mock_obj.return_value = session_instance
+
+        with patch(
+            "testbook.web.get_source_repo_config",
+            return_value={
+                "repo_name": "org/repo",
+                "default_branch": "main",
+                "tests_path": "testbook",
+                "resources_path": "doajtest",
+                "github_token": "tok",
+            },
+        ):
+            response = self.client.get("/executions?plan_id=7&execution_id=9")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            b"https://github.com/org/repo/blob/main/doajtest/fixtures/manuals/login.md",
+            response.data,
+        )
+
     def test_executions_route_displays_test_status_badges_in_navigation(self):
         session_instance = MagicMock()
         sync_query = MagicMock()
