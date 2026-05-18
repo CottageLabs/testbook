@@ -58,6 +58,51 @@ document.addEventListener('DOMContentLoaded', function() {
         executionStepComments.set(String(stepId), comment);
     }
 
+    function deriveTestStatusFromResultIds(resultIds) {
+        const statuses = (resultIds || []).map(resultId => getResultState(resultId).status || 'pending');
+        const hasFail = statuses.some(status => status === 'fail');
+        const allPass = statuses.length > 0 && statuses.every(status => status === 'pass');
+        return {
+            hasFail,
+            allPass,
+            status: hasFail ? 'fail' : (allPass ? 'pass' : 'pending')
+        };
+    }
+
+    function applyDerivedTestStatusForCard(testCard, persist) {
+        if (!testCard) return;
+        const testId = String(testCard.dataset.testId || '');
+        if (!testId) return;
+
+        const resultIds = Array.from(testCard.querySelectorAll('.exec-result-row[data-result-id]'))
+            .map(row => String(row.dataset.resultId || ''))
+            .filter(Boolean);
+        const derived = deriveTestStatusFromResultIds(resultIds);
+
+        const existingState = executionTestState.get(testId) || { status: 'pending', comment: '' };
+        const previousStatus = existingState.status || 'pending';
+        const nextState = {
+            status: derived.status,
+            comment: existingState.comment || ''
+        };
+        executionTestState.set(testId, nextState);
+
+        const passBtn = testCard.querySelector(`.btn-test-pass[data-test-id="${testId}"]`);
+        const failBtn = testCard.querySelector(`.btn-test-fail[data-test-id="${testId}"]`);
+        if (passBtn) {
+            passBtn.disabled = derived.hasFail;
+            passBtn.classList.toggle('is-disabled', derived.hasFail);
+            passBtn.classList.toggle('is-active', derived.status === 'pass' && !derived.hasFail);
+        }
+        if (failBtn) {
+            failBtn.classList.toggle('is-active', derived.status === 'fail');
+        }
+
+        if (persist && previousStatus !== derived.status) {
+            saveTestStatus(testId, derived.status, nextState.comment);
+        }
+    }
+
     // -----------------------------------------------------------------------
     // API calls
     // -----------------------------------------------------------------------
@@ -243,10 +288,10 @@ document.addEventListener('DOMContentLoaded', function() {
             // Determine if any result is fail
             const testResults = (test.steps || []).flatMap(step => step.results || []);
             const hasFailResult = testResults.some(r => getResultState(String(r.id)).status === 'fail');
-            const hasAnyStatus = testResults.some(r => getResultState(String(r.id)).status !== 'pending');
+            const allPassResults = testResults.length > 0 && testResults.every(r => getResultState(String(r.id)).status === 'pass');
             const testStateData = executionTestState.get(String(testId)) || { status: 'pending', comment: '' };
-            const testIsPass = testStateData.status === 'pass';
-            const testIsFail = testStateData.status === 'fail' || hasFailResult; // Auto-fail if any result failed
+            const testIsPass = allPassResults && !hasFailResult;
+            const testIsFail = hasFailResult;
 
             const testStatusBtnsHtml = `
                 <div class="exec-test-status-section">
@@ -320,6 +365,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 const newStatus = state.status === 'pass' ? 'pending' : 'pass';
                 setResultState(resultId, newStatus, state.comment);
                 updateResultButtonDisplay(resultId);
+                const testCard = this.closest('.exec-test-card');
+                applyDerivedTestStatusForCard(testCard, true);
                 saveResultStatus(resultId, newStatus, state.comment);
             });
         });
@@ -332,6 +379,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const newStatus = state.status === 'fail' ? 'pending' : 'fail';
                 setResultState(resultId, newStatus, state.comment);
                 updateResultButtonDisplay(resultId);
+                const testCard = this.closest('.exec-test-card');
                 if (newStatus === 'fail') {
                     // Auto-open comment box
                     const commentRow = contentRoot.querySelector(`.exec-result-comment-row[data-result-id="${resultId}"]`);
@@ -343,6 +391,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     }
                 }
+                applyDerivedTestStatusForCard(testCard, true);
                 saveResultStatus(resultId, newStatus, state.comment);
             });
         });
@@ -427,8 +476,18 @@ document.addEventListener('DOMContentLoaded', function() {
             textarea.addEventListener('change', function() {
                 const testId = this.dataset.testId;
                 const comment = this.value;
+                const currentState = executionTestState.get(String(testId)) || { status: 'pending', comment: '' };
+                executionTestState.set(String(testId), {
+                    status: currentState.status || 'pending',
+                    comment: comment
+                });
                 saveTestStatus(testId, '', comment);
             });
+        });
+
+        // Ensure test status buttons always reflect current result states.
+        contentRoot.querySelectorAll('.exec-test-card').forEach(card => {
+            applyDerivedTestStatusForCard(card, false);
         });
     }
 

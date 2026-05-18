@@ -14,6 +14,9 @@ Tokens can also be supplied (or overridden) via environment variables:
 These env vars take priority over whatever is written in the config file,
 which makes it safe to leave the ``github_token`` fields blank in
 ``config.yml`` for production deployments.
+
+Server settings can also be overridden via environment variable:
+  - ``TESTBOOK_PORT`` — TCP port the web server listens on (default 5005).
 """
 from __future__ import annotations
 
@@ -125,6 +128,57 @@ def get_source_repo_config() -> dict[str, Any]:
             "github_token": issues_token,
         },
     }
+
+
+def get_server_config() -> dict[str, Any]:
+    """Return resolved server configuration.
+
+    Port resolution order:
+      1. ``TESTBOOK_PORT`` environment variable.
+      2. ``server.port`` in config.yml.
+      3. Default: 5005.
+    """
+    cfg = get_config()
+    section = cfg.get("server", {})
+    env_port = os.environ.get("TESTBOOK_PORT", "")
+    try:
+        port = int(env_port) if env_port else int(section.get("port", 5005))
+    except (ValueError, TypeError):
+        raise ConfigurationError(
+            f"Invalid port value '{env_port or section.get('port')}'. "
+            "Must be an integer."
+        )
+    return {"port": port}
+
+
+def sync_flaskenv(port: int, flaskenv_path: str = ".flaskenv") -> None:
+    """Write/update FLASK_RUN_PORT in .flaskenv so `flask run` (and PyCharm's
+    Flask runner) always uses the same port as config.yml.
+
+    Preserves all other lines in the file unchanged.
+    """
+    target_line = f"FLASK_RUN_PORT={port}\n"
+    key = "FLASK_RUN_PORT"
+
+    if os.path.isfile(flaskenv_path):
+        with open(flaskenv_path, encoding="utf-8") as fh:
+            lines = fh.readlines()
+        updated = False
+        for i, line in enumerate(lines):
+            if line.startswith(key + "=") or line.startswith(key + " ="):
+                if lines[i] != target_line:
+                    lines[i] = target_line
+                    updated = True
+                break
+        else:
+            lines.append(target_line)
+            updated = True
+        if updated:
+            with open(flaskenv_path, "w", encoding="utf-8") as fh:
+                fh.writelines(lines)
+    else:
+        with open(flaskenv_path, "w", encoding="utf-8") as fh:
+            fh.write(f"FLASK_APP=testbook.web:app\nFLASK_RUN_HOST=0.0.0.0\n{target_line}")
 
 
 def get_plans_repo_config() -> dict[str, Any]:

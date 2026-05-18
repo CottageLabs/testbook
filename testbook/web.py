@@ -1331,7 +1331,33 @@ app = create_app()
 
 
 def main() -> None:
-    app.run(debug=True, use_reloader=False)
+    import argparse
+    from testbook.config import get_server_config, sync_flaskenv
+
+    parser = argparse.ArgumentParser(description="Run the Testbook web server.")
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help="TCP port to listen on (overrides config.yml and TESTBOOK_PORT).",
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        default=True,
+        help="Enable Flask debug mode (default: on).",
+    )
+    args = parser.parse_args()
+
+    if args.port is not None:
+        port = args.port
+    else:
+        port = get_server_config()["port"]
+
+    # Keep .flaskenv in sync so PyCharm's Flask runner uses the same port.
+    sync_flaskenv(port)
+
+    app.run(host="0.0.0.0", port=port, debug=args.debug, use_reloader=False)
 
 
 if __name__ == "__main__":

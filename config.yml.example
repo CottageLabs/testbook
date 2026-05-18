@@ -33,3 +33,8 @@ issues_repo:
   # Leave blank and set TESTBOOK_ISSUES_TOKEN env var instead for production:
   github_token: ""
 
+# Optional: web server settings.
+# You can also set TESTBOOK_PORT env var, or pass --port on the command line.
+server:
+  port: 5005
+
