@@ -76,6 +76,11 @@ def _normalize_feedback_url(value: object) -> str:
     return raw
 
 
+def _normalize_execution_test_status(value: object) -> str:
+    status = _text_value(value, "pending").strip().lower()
+    return status if status in ("pending", "pass", "fail", "skipped") else "pending"
+
+
 def _to_utc(dt: datetime | None) -> datetime | None:
     if dt is None or not isinstance(dt, datetime):
         return None
@@ -383,7 +388,7 @@ def _build_execution_suite_payload(execution: TestExecution) -> list[dict[str, o
             "github_edit_url": "",
             "context": getattr(execution_test, "context", {}) if isinstance(getattr(execution_test, "context", {}), dict) else {},
             "setup": _list_value(getattr(execution_test, "setup", [])),
-            "status": _text_value(getattr(execution_test, "status", "pending"), "pending"),
+            "status": _normalize_execution_test_status(getattr(execution_test, "status", "pending")),
             "comment": _text_value(getattr(execution_test, "comment", ""), ""),
             "steps": serialized_steps,
         }
@@ -542,6 +547,7 @@ def _default_render_context() -> dict[str, object]:
         "selected_execution_id": "",
         "selected_execution_title": "",
         "selected_execution_feedback_url": "",
+        "show_execution_statuses": False,
     }
 
 
@@ -957,6 +963,7 @@ def create_app() -> Flask:
                 active_plan_title=_text_value(getattr(selected_plan, "title", ""), ""),
                 plan_test_ids=[],
                 show_plan_buttons=False,
+                show_execution_statuses=True,
                 show_sync_button=True,
                 need_sync=False,
                 default_base_url=cfg.get("default_base_url", "http://localhost:5004/"),
@@ -1296,7 +1303,7 @@ def create_app() -> Flask:
     @app.patch("/api/execution-test/<int:test_id>")
     def update_execution_test(test_id: int):
         """Update status and/or comment for an execution test.
-        Accepts JSON {status: 'pass'|'fail'|'pending', comment: '...'}
+        Accepts JSON {status: 'pass'|'fail'|'pending'|'skipped', comment: '...'}
         """
         session = get_session()
         try:
@@ -1308,7 +1315,7 @@ def create_app() -> Flask:
             status = str(data.get("status", "")).strip()
             comment = str(data.get("comment", "")).strip()
 
-            if status and status in ("pass", "fail", "pending"):
+            if status and status in ("pass", "fail", "pending", "skipped"):
                 test.status = status
             if "comment" in data:
                 test.comment = comment

@@ -453,6 +453,44 @@ class TestExecutionModels(unittest.TestCase):
         self.assertEqual(frozen_ex_step.text, "Enter credentials")
         self.assertEqual(frozen_ex_result.text, "User is logged in")
 
+    def test_execution_test_can_store_skipped_status(self):
+        _, _, source_test, _, _, plan = self._seed_source_test_and_plan()
+
+        execution = TestExecution(
+            test_plan_id=plan.id,
+            repo_name="org/repo",
+            branch="main",
+            tester_name="Alice",
+            iteration=1,
+            is_finished=False,
+            created_at=datetime(2026, 1, 2, 10, 0, tzinfo=timezone.utc),
+            updated_at=datetime(2026, 1, 2, 10, 0, tzinfo=timezone.utc),
+        )
+        self.session.add(execution)
+        self.session.flush()
+
+        self.session.add(
+            ExecutionTest(
+                execution_id=execution.id,
+                source_test_id=source_test.id,
+                source_test_stable_id=source_test.stable_id,
+                source_suite_name="Auth",
+                source_testset_name="Login",
+                title="Valid login",
+                context={"role": "admin"},
+                setup=[],
+                order_index=0,
+                status="skipped",
+                comment="Skipped because feature flag is off",
+            )
+        )
+        self.session.commit()
+
+        fetched = self.session.scalars(select(ExecutionTest)).first()
+        self.assertIsNotNone(fetched)
+        self.assertEqual(fetched.status, "skipped")
+        self.assertEqual(fetched.comment, "Skipped because feature flag is off")
+
 
 class TestSchemaUpgrades(unittest.TestCase):
     """Verify backward-compatible schema upgrades for legacy DBs."""

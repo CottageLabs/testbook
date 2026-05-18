@@ -422,7 +422,7 @@ class ExecutionTest(Base):
     order_index = Column(Integer, nullable=False, default=0)
 
     # Runtime execution state.
-    status = Column(String(20), nullable=False, default="pending")  # pending|pass|fail
+    status = Column(String(20), nullable=False, default="pending")  # pending|pass|fail|skipped
     comment = Column(Text, nullable=False, default="")
 
     execution = relationship("TestExecution", back_populates="execution_tests")

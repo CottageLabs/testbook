@@ -737,6 +737,28 @@ class TestExecutionsRoute(unittest.TestCase):
         self.assertEqual(data["title"], "Cycle 1 - Retest")
         self.assertEqual(data["feedback_url"], "https://github.com/org/repo/pull/55")
 
+    def test_update_execution_test_allows_skipped_status(self):
+        execution_test = MagicMock()
+        execution_test.id = 22
+        execution_test.status = "pending"
+        execution_test.comment = ""
+
+        session_instance = MagicMock()
+        session_instance.query.return_value.filter_by.return_value.first.return_value = execution_test
+        session_instance.commit = MagicMock()
+        session_instance.close = MagicMock()
+        self.session_mock_obj.return_value = session_instance
+
+        response = self.client.patch(
+            "/api/execution-test/22",
+            json={"status": "skipped", "comment": "Not applicable for this release"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(data["status"], "skipped")
+        self.assertEqual(data["comment"], "Not applicable for this release")
+
     def test_executions_route_displays_active_plan_in_sidebar(self):
         session_instance = MagicMock()
         sync_query = MagicMock()
@@ -783,6 +805,92 @@ class TestExecutionsRoute(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Feedback:", response.data)
         self.assertIn(b'href="https://github.com/org/repo/issues/42"', response.data)
+
+    def test_executions_route_displays_test_status_badges_in_navigation(self):
+        session_instance = MagicMock()
+        sync_query = MagicMock()
+        sync_query.filter_by.return_value.first.return_value = None
+
+        plan = SimpleNamespace(id=7, title="Smoke Plan", plan_items=[])
+        plans_query = MagicMock()
+        plans_query.options.return_value.filter_by.return_value.order_by.return_value.all.return_value = [plan]
+
+        execution = SimpleNamespace(
+            id=9,
+            title="Cycle 1",
+            feedback_url="",
+            test_plan_id=7,
+            execution_tests=[
+                SimpleNamespace(
+                    id=201,
+                    source_test_stable_id="auth-1",
+                    source_suite_name="Auth",
+                    source_testset_name="Login",
+                    title="Passed test",
+                    context={},
+                    setup=[],
+                    order_index=0,
+                    status="pass",
+                    comment="",
+                    steps=[],
+                ),
+                SimpleNamespace(
+                    id=202,
+                    source_test_stable_id="auth-2",
+                    source_suite_name="Auth",
+                    source_testset_name="Login",
+                    title="Failed test",
+                    context={},
+                    setup=[],
+                    order_index=1,
+                    status="fail",
+                    comment="",
+                    steps=[],
+                ),
+                SimpleNamespace(
+                    id=203,
+                    source_test_stable_id="auth-3",
+                    source_suite_name="Auth",
+                    source_testset_name="Login",
+                    title="Skipped test",
+                    context={},
+                    setup=[],
+                    order_index=2,
+                    status="pending",
+                    comment="",
+                    steps=[],
+                ),
+                SimpleNamespace(
+                    id=204,
+                    source_test_stable_id="auth-4",
+                    source_suite_name="Auth",
+                    source_testset_name="Login",
+                    title="Skipped test",
+                    context={},
+                    setup=[],
+                    order_index=3,
+                    status="skipped",
+                    comment="",
+                    steps=[],
+                ),
+            ],
+        )
+        executions_query = MagicMock()
+        executions_query.options.return_value.filter_by.return_value.order_by.return_value.all.return_value = [execution]
+
+        session_instance.query.side_effect = [sync_query, plans_query, executions_query]
+        self.session_mock_obj.return_value = session_instance
+
+        response = self.client.get("/executions?plan_id=7&execution_id=9")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'exec-nav-status exec-nav-status--pass', response.data)
+        self.assertIn(b'>pass<', response.data)
+        self.assertIn(b'exec-nav-status exec-nav-status--fail', response.data)
+        self.assertIn(b'>fail<', response.data)
+        self.assertIn(b'exec-nav-status exec-nav-status--todo', response.data)
+        self.assertIn(b'>todo<', response.data)
+        self.assertIn(b'exec-nav-status exec-nav-status--skipped', response.data)
+        self.assertIn(b'>skipped<', response.data)
 
 
 if __name__ == "__main__":

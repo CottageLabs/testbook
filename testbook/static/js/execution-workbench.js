@@ -39,7 +39,15 @@ document.addEventListener('DOMContentLoaded', function() {
     // -----------------------------------------------------------------------
     const executionStateMap = new Map(); // resultId -> {status: 'pass'|'fail'|'pending', comment: string}
     const executionStepComments = new Map(); // stepId -> comment string
-    const executionTestState = new Map(); // testId -> {status: 'pass'|'fail'|'pending', comment: string}
+    const executionTestState = new Map(); // testId -> {status: 'pass'|'fail'|'pending'|'skipped', manualStatus: ''|'pass'|'fail'|'skipped', comment: string}
+
+    function normalizeTestStatus(status) {
+        return ['pending', 'pass', 'fail', 'skipped'].includes(status) ? status : 'pending';
+    }
+
+    function normalizeManualTestStatus(status) {
+        return ['pass', 'fail', 'skipped'].includes(status) ? status : '';
+    }
 
     function getResultState(resultId) {
         return executionStateMap.get(String(resultId)) || { status: 'pending', comment: '' };
@@ -58,6 +66,26 @@ document.addEventListener('DOMContentLoaded', function() {
         executionStepComments.set(String(stepId), comment);
     }
 
+    function getTestState(testId) {
+        const state = executionTestState.get(String(testId)) || { status: 'pending', manualStatus: '', comment: '' };
+        return {
+            status: normalizeTestStatus(state.status),
+            manualStatus: normalizeManualTestStatus(state.manualStatus),
+            comment: state.comment || ''
+        };
+    }
+
+    function setTestState(testId, status, comment, manualStatus) {
+        const current = getTestState(testId);
+        executionTestState.set(String(testId), {
+            status: normalizeTestStatus(status),
+            manualStatus: manualStatus === undefined
+                ? current.manualStatus
+                : normalizeManualTestStatus(manualStatus),
+            comment: comment === undefined ? current.comment : (comment || '')
+        });
+    }
+
     function deriveTestStatusFromResultIds(resultIds) {
         const statuses = (resultIds || []).map(resultId => getResultState(resultId).status || 'pending');
         const hasFail = statuses.some(status => status === 'fail');
@@ -67,6 +95,21 @@ document.addEventListener('DOMContentLoaded', function() {
             allPass,
             status: hasFail ? 'fail' : (allPass ? 'pass' : 'pending')
         };
+    }
+
+    function updateExecutionNavStatusIndicator(testId, status) {
+        const indicator = document.querySelector(`.exec-nav-status[data-test-id="${testId}"]`);
+        if (!indicator) return;
+        const navStatus = status === 'pending' ? 'todo' : normalizeTestStatus(status);
+        indicator.dataset.status = navStatus;
+        indicator.textContent = navStatus;
+        indicator.classList.remove(
+            'exec-nav-status--todo',
+            'exec-nav-status--pass',
+            'exec-nav-status--fail',
+            'exec-nav-status--skipped'
+        );
+        indicator.classList.add(`exec-nav-status--${navStatus}`);
     }
 
     function applyDerivedTestStatusForCard(testCard, persist) {
@@ -79,28 +122,41 @@ document.addEventListener('DOMContentLoaded', function() {
             .filter(Boolean);
         const derived = deriveTestStatusFromResultIds(resultIds);
 
-        const existingState = executionTestState.get(testId) || { status: 'pending', comment: '' };
-        const previousStatus = existingState.status || 'pending';
+        const existingState = getTestState(testId);
+        const previousStatus = existingState.status;
+        const effectiveStatus = derived.hasFail
+            ? 'fail'
+            : (existingState.manualStatus || (derived.allPass ? 'pass' : 'pending'));
         const nextState = {
-            status: derived.status,
+            status: effectiveStatus,
+            manualStatus: existingState.manualStatus,
             comment: existingState.comment || ''
         };
         executionTestState.set(testId, nextState);
 
         const passBtn = testCard.querySelector(`.btn-test-pass[data-test-id="${testId}"]`);
         const failBtn = testCard.querySelector(`.btn-test-fail[data-test-id="${testId}"]`);
+        const skippedBtn = testCard.querySelector(`.btn-test-skipped[data-test-id="${testId}"]`);
         if (passBtn) {
             passBtn.disabled = derived.hasFail;
             passBtn.classList.toggle('is-disabled', derived.hasFail);
-            passBtn.classList.toggle('is-active', derived.status === 'pass' && !derived.hasFail);
+            passBtn.classList.toggle('is-active', effectiveStatus === 'pass' && !derived.hasFail);
         }
         if (failBtn) {
-            failBtn.classList.toggle('is-active', derived.status === 'fail');
+            failBtn.classList.toggle('is-active', effectiveStatus === 'fail');
+        }
+        if (skippedBtn) {
+            skippedBtn.classList.toggle('is-active', effectiveStatus === 'skipped');
         }
 
-        if (persist && previousStatus !== derived.status) {
-            saveTestStatus(testId, derived.status, nextState.comment);
+        updateExecutionNavStatusIndicator(testId, effectiveStatus);
+        testCard.dataset.persistedStatus = effectiveStatus;
+
+        if (persist && previousStatus !== effectiveStatus) {
+            saveTestStatus(testId, effectiveStatus, nextState.comment);
         }
+
+        return nextState;
     }
 
     // -----------------------------------------------------------------------
@@ -175,7 +231,8 @@ document.addEventListener('DOMContentLoaded', function() {
         (testset.tests || []).forEach(test => {
             if (test.id) {
                 executionTestState.set(String(test.id), {
-                    status: test.status || 'pending',
+                    status: normalizeTestStatus(test.status || 'pending'),
+                    manualStatus: normalizeManualTestStatus(test.status || ''),
                     comment: test.comment || ''
                 });
             }
@@ -289,23 +346,29 @@ document.addEventListener('DOMContentLoaded', function() {
             const testResults = (test.steps || []).flatMap(step => step.results || []);
             const hasFailResult = testResults.some(r => getResultState(String(r.id)).status === 'fail');
             const allPassResults = testResults.length > 0 && testResults.every(r => getResultState(String(r.id)).status === 'pass');
-            const testStateData = executionTestState.get(String(testId)) || { status: 'pending', comment: '' };
-            const testIsPass = allPassResults && !hasFailResult;
-            const testIsFail = hasFailResult;
+            const testStateData = getTestState(String(testId));
+            const effectiveTestStatus = hasFailResult
+                ? 'fail'
+                : (testStateData.manualStatus || (allPassResults ? 'pass' : 'pending'));
 
             const testStatusBtnsHtml = `
                 <div class="exec-test-status-section">
                     <div class="exec-test-status-label">Test Result:</div>
-                    <button type="button" class="btn-test-status btn-test-pass ${hasFailResult ? 'is-disabled' : ''} ${testIsPass && !hasFailResult ? 'is-active' : ''}" 
+                    <button type="button" class="btn-test-status btn-test-pass ${hasFailResult ? 'is-disabled' : ''} ${effectiveTestStatus === 'pass' && !hasFailResult ? 'is-active' : ''}" 
                             data-test-id="${escapeHtml(testId)}" 
                             title="${hasFailResult ? 'Disable because test has failing results' : 'Mark entire test as Pass'}"
                             ${hasFailResult ? 'disabled' : ''}>
                         Pass
                     </button>
-                    <button type="button" class="btn-test-status btn-test-fail ${testIsFail ? 'is-active' : ''}" 
+                    <button type="button" class="btn-test-status btn-test-fail ${effectiveTestStatus === 'fail' ? 'is-active' : ''}" 
                             data-test-id="${escapeHtml(testId)}"
                             title="Mark entire test as Fail">
                         Fail
+                    </button>
+                    <button type="button" class="btn-test-status btn-test-skipped ${effectiveTestStatus === 'skipped' ? 'is-active' : ''}" 
+                            data-test-id="${escapeHtml(testId)}"
+                            title="Mark entire test as Skipped">
+                        Skipped
                     </button>
                 </div>
             `;
@@ -319,7 +382,7 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
 
             return `
-                <article class="exec-test-card" id="exec-test-${escapeHtml(testId)}" data-test-id="${escapeHtml(testId)}">
+                <article class="exec-test-card" id="exec-test-${escapeHtml(testId)}" data-test-id="${escapeHtml(testId)}" data-persisted-status="${escapeHtml(effectiveTestStatus)}">
                     <div class="exec-test-card-header">
                         <h3>${testIdx + 1}. ${escapeHtml(test.title)}</h3>
                     </div>
@@ -366,6 +429,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 setResultState(resultId, newStatus, state.comment);
                 updateResultButtonDisplay(resultId);
                 const testCard = this.closest('.exec-test-card');
+                if (testCard) {
+                    const testId = String(testCard.dataset.testId || '');
+                    const testState = getTestState(testId);
+                    if (testState.manualStatus === 'skipped') {
+                        setTestState(testId, testState.status, testState.comment, '');
+                    }
+                }
                 applyDerivedTestStatusForCard(testCard, true);
                 saveResultStatus(resultId, newStatus, state.comment);
             });
@@ -380,6 +450,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 setResultState(resultId, newStatus, state.comment);
                 updateResultButtonDisplay(resultId);
                 const testCard = this.closest('.exec-test-card');
+                if (testCard) {
+                    const testId = String(testCard.dataset.testId || '');
+                    const testState = getTestState(testId);
+                    if (testState.manualStatus === 'skipped') {
+                        setTestState(testId, testState.status, testState.comment, '');
+                    }
+                }
                 if (newStatus === 'fail') {
                     // Auto-open comment box
                     const commentRow = contentRoot.querySelector(`.exec-result-comment-row[data-result-id="${resultId}"]`);
@@ -401,6 +478,7 @@ document.addEventListener('DOMContentLoaded', function() {
             btn.addEventListener('click', function(e) {
                 e.preventDefault();
                 const resultId = this.dataset.resultId;
+                if (!resultId) return;
                 const commentRow = contentRoot.querySelector(`.exec-result-comment-row[data-result-id="${resultId}"]`);
                 if (commentRow) {
                     commentRow.classList.toggle('is-visible');
@@ -459,15 +537,24 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
 
-        // Test pass/fail buttons
+        // Test pass/fail/skipped buttons
         contentRoot.querySelectorAll('.btn-test-status').forEach(btn => {
             btn.addEventListener('click', function(e) {
                 e.preventDefault();
                 if (this.disabled) return;
                 const testId = this.dataset.testId;
-                const isFail = this.classList.contains('btn-test-fail');
-                const status = isFail ? 'fail' : 'pass';
-                saveTestStatus(testId, status, '');
+                const currentState = getTestState(testId);
+                let selectedStatus = 'pass';
+                if (this.classList.contains('btn-test-fail')) {
+                    selectedStatus = 'fail';
+                } else if (this.classList.contains('btn-test-skipped')) {
+                    selectedStatus = 'skipped';
+                }
+                const nextManualStatus = currentState.manualStatus === selectedStatus ? '' : selectedStatus;
+                setTestState(testId, nextManualStatus || 'pending', currentState.comment, nextManualStatus);
+                const testCard = this.closest('.exec-test-card');
+                const effectiveState = applyDerivedTestStatusForCard(testCard, false) || getTestState(testId);
+                saveTestStatus(testId, effectiveState.status, effectiveState.comment);
             });
         });
 
@@ -476,12 +563,9 @@ document.addEventListener('DOMContentLoaded', function() {
             textarea.addEventListener('change', function() {
                 const testId = this.dataset.testId;
                 const comment = this.value;
-                const currentState = executionTestState.get(String(testId)) || { status: 'pending', comment: '' };
-                executionTestState.set(String(testId), {
-                    status: currentState.status || 'pending',
-                    comment: comment
-                });
-                saveTestStatus(testId, '', comment);
+                const currentState = getTestState(testId);
+                setTestState(testId, currentState.status, comment, currentState.manualStatus);
+                saveTestStatus(testId, currentState.status, comment);
             });
         });
 

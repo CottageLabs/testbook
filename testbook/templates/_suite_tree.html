@@ -35,6 +35,11 @@
                         <button class="test-title nav-link nav-target" type="button" data-target="test/{{ test.id }}" data-parent-set-id="{{ testset.id }}" id="nav-test-{{ test.id }}">{{ test.title }}</button>
                         {% if show_plan_buttons|default(True) %}
                         <span class="plan-btn-slot" data-for-test="{{ test.id }}"></span>
+                        {% elif show_execution_statuses|default(False) %}
+                        {% set nav_status = test.status if test.status in ['pass', 'fail', 'skipped'] else 'todo' %}
+                        <span class="exec-nav-status-slot">
+                            <span class="exec-nav-status exec-nav-status--{{ nav_status }}" data-test-id="{{ test.id }}" data-status="{{ nav_status }}">{{ nav_status }}</span>
+                        </span>
                         {% endif %}
                     </li>
                     {% endfor %}

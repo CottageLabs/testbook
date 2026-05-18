@@ -611,6 +611,52 @@ p {
     justify-content: flex-end;
 }
 
+.exec-nav-status-slot {
+    display: inline-flex;
+    margin-left: auto;
+    flex-shrink: 0;
+    min-width: 64px;
+    justify-content: flex-end;
+}
+
+.exec-nav-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 52px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    border: 1px solid var(--border);
+}
+
+.exec-nav-status--todo {
+    background: #f3f4f6;
+    border-color: #d1d5db;
+    color: #4b5563;
+}
+
+.exec-nav-status--pass {
+    background: #dcfce7;
+    border-color: #86efac;
+    color: #166534;
+}
+
+.exec-nav-status--fail {
+    background: #fee2e2;
+    border-color: #fca5a5;
+    color: #991b1b;
+}
+
+.exec-nav-status--skipped {
+    background: #fef3c7;
+    border-color: #fcd34d;
+    color: #92400e;
+}
+
 .btn-plan {
     width: 26px;
     height: 26px;
@@ -1309,6 +1355,16 @@ ul {
     background: #fee2e2;
     border-color: #fca5a5;
     color: #991b1b;
+}
+
+.btn-test-skipped {
+    color: #92400e;
+}
+
+.btn-test-skipped.is-active {
+    background: #fef3c7;
+    border-color: #fcd34d;
+    color: #92400e;
 }
 
 .exec-test-comment-section {
