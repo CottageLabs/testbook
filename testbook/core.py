@@ -14,8 +14,8 @@ def rel2abs(file, *args):
 def line_breaker_filter_jinja2(text):
     return text.replace("\n", "<br/>")
 
-TEMPLATE_DIR = rel2abs(__file__, "resources", "templates")
-ASSETS_DIR = rel2abs(__file__, "resources", "assets")
+TEMPLATE_DIR = rel2abs(__file__, "templates")
+ASSETS_DIR = rel2abs(__file__, "static")
 
 
 def parse_tree(dir, outdir, config):

@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Testbook Logo Concepts</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #475569;
+      --border: #dbe2ea;
+      --shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      padding: 32px;
+    }
+    h1 { margin-top: 0; }
+    p { color: var(--muted); }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      margin: 24px 0 32px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      padding: 20px;
+    }
+    .logo-box {
+      min-height: 220px;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+      border: 1px solid #e8eef5;
+      margin-bottom: 14px;
+      padding: 16px;
+    }
+    .logo-box img {
+      width: 180px;
+      height: 180px;
+      display: block;
+    }
+    .swatches {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .swatch {
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      border: 1px solid rgba(15, 23, 42, 0.12);
+    }
+    .palette-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-top: 12px;
+    }
+    .palette-row { display: flex; gap: 8px; margin-top: 10px; }
+    code {
+      background: #eef2ff;
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Testbook logo concepts</h1>
+  <p>Three SVG directions based on the current product styling and your open-book-with-a-T idea.</p>
+
+  <div class="grid">
+    <section class="card">
+      <div class="logo-box">
+        <img src="testbook-logo-concept-01-open-book-t.svg" alt="Open book T logo concept">
+      </div>
+      <h2>Concept 1 — Open Book T</h2>
+      <p>The page tops and center fold build a distinct <code>T</code>, while the silhouette still reads clearly as an open book.</p>
+      <div class="swatches">
+        <span class="swatch" style="background:#2563EB"></span>
+        <span class="swatch" style="background:#1E3A8A"></span>
+        <span class="swatch" style="background:#93C5FD"></span>
+        <span class="swatch" style="background:#DBEAFE"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="logo-box">
+        <img src="testbook-logo-concept-02-check-book.svg" alt="Check book logo concept">
+      </div>
+      <h2>Concept 2 — Check Book</h2>
+      <p>A book icon with a large verification checkmark, leaning more toward testing and completion.</p>
+      <div class="swatches">
+        <span class="swatch" style="background:#2563EB"></span>
+        <span class="swatch" style="background:#0F172A"></span>
+        <span class="swatch" style="background:#10B981"></span>
+        <span class="swatch" style="background:#EFF6FF"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="logo-box">
+        <img src="testbook-logo-concept-03-tabbed-suites.svg" alt="Tabbed suites logo concept">
+      </div>
+      <h2>Concept 3 — Tabbed Suites</h2>
+      <p>Layered cards and tabs to suggest organised suites, plans, and navigation structures.</p>
+      <div class="swatches">
+        <span class="swatch" style="background:#0F172A"></span>
+        <span class="swatch" style="background:#60A5FA"></span>
+        <span class="swatch" style="background:#BFDBFE"></span>
+        <span class="swatch" style="background:#E0F2FE"></span>
+      </div>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>Palette directions</h2>
+    <div class="palette-grid">
+      <div>
+        <h3>Current UI / Product Blue</h3>
+        <div class="palette-row">
+          <span class="swatch" style="background:#2563EB"></span>
+          <span class="swatch" style="background:#0F172A"></span>
+          <span class="swatch" style="background:#93C5FD"></span>
+          <span class="swatch" style="background:#DBEAFE"></span>
+          <span class="swatch" style="background:#FFFFFF"></span>
+        </div>
+      </div>
+      <div>
+        <h3>Editorial Teal</h3>
+        <div class="palette-row">
+          <span class="swatch" style="background:#0F766E"></span>
+          <span class="swatch" style="background:#134E4A"></span>
+          <span class="swatch" style="background:#14B8A6"></span>
+          <span class="swatch" style="background:#CCFBF1"></span>
+          <span class="swatch" style="background:#F8FAFC"></span>
+        </div>
+      </div>
+      <div>
+        <h3>Warm Lab</h3>
+        <div class="palette-row">
+          <span class="swatch" style="background:#7C3AED"></span>
+          <span class="swatch" style="background:#1F2937"></span>
+          <span class="swatch" style="background:#F97316"></span>
+          <span class="swatch" style="background:#EDE9FE"></span>
+          <span class="swatch" style="background:#FFF7ED"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+</body>
+</html>
+

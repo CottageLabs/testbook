@@ -2,6 +2,24 @@
 
 A tool for converting Functional Test definitions in your codebase to HTML/CSV scripts for humans to work with
 
+## Basic web app
+
+This project now also includes a small Flask web application with an index page.
+
+Run it with either:
+
+```bash
+flask --app testbook.web:create_app run
+```
+
+or:
+
+```bash
+testbook-web
+```
+
+Then open `http://127.0.0.1:5000/` to view the index page.
+
 ## Building a testbook
 
 General form is
@@ -56,7 +74,8 @@ fragments:
     - step: Another reusable step
 
 tests:
-  - title: Title of this specific test
+  - id: optional-stable-test-id
+    title: Title of this specific test
     context:
       any_key: any_value
     depends:
@@ -83,6 +102,7 @@ When the files are read, the tests will be clustered by `suite` and then `testse
 You may then define any number of re-usable fragments of test scripts.  This is done in a `fragments` field where each fragment is provided with a unique id.  The fragment may then contain an arbitrary number of `step`s.  Note that fragments can only be used within the file they are defined in (for now).
 
 Each test consists of 
+* an optional `id` which should be globally unique across your test corpus and is used as the stable identity across syncs
 * a `title` which should be unique within this `testset`
 * a `context` which allows you to include any key/value pairs for the user's information (they have no semantics within testbook)
 * a `depends` list, which lists any number of tests which must be executed prior to this test in order for it to work.  This can contain a `suite`, `testset` and `test` as needed.
@@ -93,4 +113,6 @@ Each test consists of
     * a `resource` - a link to a test resource that the user may need (e.g. a file to upload to a web form)
     * a `results` list - any number of outcomes from the `step` that the user should check
     * an `include` directive - if this is present, none of the other entries defined above have any effect.  This defines a fragment to be included, and has a `fragment` field within it where you specify the fragment ID in the `fragments` section.
+
+If `id` is omitted, testbook derives a stable id from the test `title` using a slug format (for example, `"Valid credentials"` becomes `"valid-credentials"`). This generated id remains stable across syncs unless the title itself changes.
 

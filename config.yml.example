@@ -1,0 +1,51 @@
+# =============================================================================
+# Testbook configuration — EXAMPLE FILE
+# =============================================================================
+# Copy this file to config.yml and fill in the real values.
+# config.yml is listed in .gitignore and must never be committed.
+# =============================================================================
+
+source_repo:
+  repo_name: "myorg/myproject"
+  tests_path: "testbook"
+  resources_path: "testbook/resources"
+  default_branch: "main"
+  # Base URL to the application being tested.
+  # This is used to create clickable links from test steps that have a "path" element.
+  # Users can override this at runtime via the UI (persisted in browser localStorage).
+  default_base_url: "http://localhost:5004/"
+  # How often (in seconds) the UI should check whether tests changed on GitHub.
+  freshness_check_interval_seconds: 1800
+  # Leave blank and set TESTBOOK_SOURCE_TOKEN env var instead for production:
+  github_token: ""
+
+plans_repo:
+  repo_name: "myorg/test-plans"
+  default_branch: "main"
+  # Leave blank and set TESTBOOK_PLANS_TOKEN env var instead for production:
+  github_token: ""
+
+# Optional: repository to use when storing execution feedback in GitHub issues/PRs.
+# The repo_name here is informational only — when pushing failure reports, Testbook
+# always posts to the repository identified in the execution's feedback URL.
+# The github_token MUST have "Issues: Read and Write" permission for any repository
+# you intend to post feedback to.
+# If omitted, Testbook falls back to the source_repo github_token.
+# NOTE: If you use a fine-grained PAT for source_repo that is scoped to only the
+# source repository, you must supply a separate token here with access to the
+# issues/feedback repository.
+issues_repo:
+  repo_name: "myorg/myproject"
+  default_branch: "main"
+  # Leave blank and set TESTBOOK_ISSUES_TOKEN env var instead for production:
+  github_token: ""
+
+# Optional: web server settings.
+# You can also set TESTBOOK_PORT env var, or pass --port on the command line.
+server:
+  port: 5005
+  # Base URL to the Testbook application itself.
+  # This is used to create absolute links in markdown failure reports and to navigate back to Testbook.
+  # You can also set TESTBOOK_BASE_URL env var instead for production.
+  testbook_base_url: "http://localhost:5005/"
+

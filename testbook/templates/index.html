@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block sidebar %}
+{% include("navigation.html") %}
+{% endblock %}
+
+{% block content_placeholder %}
+<h2>Test content</h2>
+<p class="lead">Select a testset or a test from the left navigation to view details.</p>
+{% endblock %}
+
+{% block page_data %}
+<script id="suite-data" type="application/json">{{ suite_payload|tojson }}</script>
+<script id="default-base-url" type="application/json">{{ default_base_url|tojson }}</script>
+<script id="selected-branch" type="application/json">{{ selected_branch|tojson }}</script>
+<script id="freshness-check-interval" type="application/json">{{ freshness_check_interval_seconds|tojson }}</script>
+<script id="active-plan-id" type="application/json">{{ active_plan_id|tojson }}</script>
+<script id="plan-test-ids" type="application/json">{{ plan_test_ids|tojson }}</script>
+{% endblock %}

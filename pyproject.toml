@@ -16,13 +16,28 @@ maintainers = [
 ]
 dependencies = [
     "click>=8.0.0",
+    "Flask==3.1.2",
     "jinja2~=3.1.4",
     "MarkupSafe~=2.1.5",
+    "PyGithub>=2.1.0",
     "pyyaml~=6.0.2",
+    "SQLAlchemy>=2.0.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.scripts]
 testbook = "testbook.cli:main"
+testbook-web = "testbook.web:main"
 
 [project.urls]
 Homepage = "https://cottagelabs.com/"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+testbook = [
+    "templates/*.html",
+    "static/*.css",
+    "static/js/*.js",
+]

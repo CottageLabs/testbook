@@ -1,0 +1,13 @@
+<div class="panel-title-row">
+    <h2>Test Suites</h2>
+    {% if suite_payload %}
+    <div class="nav-controls">
+        <button class="btn-expand-all" type="button" title="Expand all">▼</button>
+        <button class="btn-collapse-all" type="button" title="Collapse all">▶</button>
+        <span class="badge">{{ suite_payload | length }}</span>
+    </div>
+    {% endif %}
+</div>
+
+{% set empty_state_message = 'No tests synced for ' ~ selected_branch ~ ' yet. Click "Sync Tests" to load them.' %}
+{% include("_suite_tree.html") %}

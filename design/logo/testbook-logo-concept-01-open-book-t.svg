@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Testbook logo concept 1: open book T</title>
+  <desc id="desc">An open book mark whose top page edge and center spine form a bold T.</desc>
+  <defs>
+    <style>
+      .navy { fill: #1d4ed8; }
+      .navy-soft { fill: #eff6ff; }
+      .navy-mid { fill: #dbeafe; }
+      .ink { fill: #0f172a; }
+    </style>
+  </defs>
+
+  <path class="navy-soft" d="M40 72c34-18 58-24 84-18v124c-30-8-54-2-84 16V72Z" opacity="0.7"/>
+  <path class="navy-mid" d="M216 72c-34-18-58-24-84-18v124c30-8 54-2 84 16V72Z" opacity="0.72"/>
+  <path class="navy" d="M48 78c28-16 52-22 80-18c28-4 52 2 80 18v14c-29-11-56-15-80-12c-24-3-51 1-80 12V78Z"/>
+  <path class="navy" d="M118 58h20v128c0 6-4 10-10 10s-10-4-10-10V58Z"/>
+  <path class="ink" opacity="0.08" d="M128 60v128"/>
+  <path d="M40 72c34-18 58-24 84-18v124c-30-8-54-2-84 16V72Z" fill="none" stroke="#1e3a8a" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M216 72c-34-18-58-24-84-18v124c30-8 54-2 84 16V72Z" fill="none" stroke="#1e3a8a" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M128 54v126" fill="none" stroke="#1e3a8a" stroke-width="8" stroke-linecap="round"/>
+</svg>
+
+

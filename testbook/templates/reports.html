@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block branch_form_hidden %}
+{% if selected_execution_id %}
+<input type="hidden" name="execution_id" value="{{ selected_execution_id }}">
+{% endif %}
+{% endblock %}
+
+{% block sidebar %}
+{% include("reports_navigation.html") %}
+{% endblock %}
+
+{% block content_placeholder %}
+<h2>Report content</h2>
+<p class="lead">Select an execution to view its read-only report.</p>
+{% endblock %}
+
+{% block page_data %}
+<script id="suite-data" type="application/json">{{ suite_payload|tojson }}</script>
+<script id="default-base-url" type="application/json">{{ default_base_url|tojson }}</script>
+<script id="selected-branch" type="application/json">{{ selected_branch|tojson }}</script>
+<script id="selected-plan-id" type="application/json">{{ selected_plan_id|tojson }}</script>
+<script id="selected-execution-id" type="application/json">{{ selected_execution_id|tojson }}</script>
+<script id="freshness-check-interval" type="application/json">{{ freshness_check_interval_seconds|tojson }}</script>
+<script id="active-plan-id" type="application/json">""</script>
+<script id="plan-test-ids" type="application/json">[]</script>
+<script id="read-only-mode" type="application/json">true</script>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="{{ url_for('static', filename='js/execution-workbench.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+	const downloadButton = document.getElementById('download-failures-btn');
+	if (!downloadButton || downloadButton.disabled) {
+		// Continue to set up push button even if download is disabled
+	}
+
+	const pushButton = document.getElementById('push-failures-btn');
+	if (!pushButton || pushButton.disabled) {
+		// Push button may be disabled if no feedback URL
+		return;
+	}
+
+	const selectedBranchNode = document.getElementById('selected-branch');
+	const selectedPlanIdNode = document.getElementById('selected-plan-id');
+	const selectedExecutionIdNode = document.getElementById('selected-execution-id');
+	const selectedBranch = selectedBranchNode ? JSON.parse(selectedBranchNode.textContent || '""') : '';
+	const selectedPlanId = selectedPlanIdNode ? JSON.parse(selectedPlanIdNode.textContent || '""') : '';
+	const selectedExecutionId = selectedExecutionIdNode ? JSON.parse(selectedExecutionIdNode.textContent || '""') : '';
+
+	if (downloadButton && !downloadButton.disabled) {
+		downloadButton.addEventListener('click', function () {
+		if (!selectedExecutionId) {
+			return;
+		}
+		const params = new URLSearchParams();
+		if (selectedBranch) params.set('branch', selectedBranch);
+		if (selectedPlanId) params.set('plan_id', selectedPlanId);
+		params.set('execution_id', selectedExecutionId);
+		window.location.href = '/reports/download-failures?' + params.toString();
+	});
+	}
+
+	pushButton.addEventListener('click', function () {
+		if (!selectedExecutionId) {
+			alert('Please select an execution');
+			return;
+		}
+		pushButton.disabled = true;
+		const originalText = pushButton.textContent;
+		pushButton.textContent = 'Posting...';
+
+		const params = new URLSearchParams();
+		if (selectedBranch) params.set('branch', selectedBranch);
+		if (selectedPlanId) params.set('plan_id', selectedPlanId);
+
+		fetch('/api/execution/' + encodeURIComponent(selectedExecutionId) + '/push-feedback?' + params.toString(), {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' }
+		})
+			.then(r => {
+				if (!r.ok) return r.json().then(data => Promise.reject(data));
+				return r.json();
+			})
+			.then(data => {
+				pushButton.textContent = '✓ Posted to GitHub';
+				const statusDiv = document.getElementById('feedback-status');
+				if (statusDiv) {
+					statusDiv.innerHTML = '<p>✓ Feedback posted: <a href="' + escapeHtml(data.feedback_comment_url) +
+						'" target="_blank" rel="noopener noreferrer">View comment</a></p>';
+					statusDiv.style.display = 'block';
+				}
+				setTimeout(() => {
+					pushButton.textContent = originalText;
+					pushButton.disabled = false;
+				}, 3000);
+			})
+			.catch(err => {
+				alert('Failed to post feedback: ' + (err.error || err.message || 'Unknown error'));
+				pushButton.textContent = originalText;
+				pushButton.disabled = false;
+			});
+	});
+});
+
+function escapeHtml(text) {
+	return String(text)
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;');
+}
+</script>
+{% endblock %}
+

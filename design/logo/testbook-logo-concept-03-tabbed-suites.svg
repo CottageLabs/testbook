@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Testbook logo concept 3: tabbed suites</title>
+  <desc id="desc">Layered tabs and cards suggesting organized test suites, plans, and structured navigation.</desc>
+  <defs>
+    <style>
+      .card-1 { fill: #e0f2fe; }
+      .card-2 { fill: #bfdbfe; }
+      .card-3 { fill: #60a5fa; }
+      .tab { fill: #0f172a; }
+      .stroke { stroke: #0f172a; stroke-width: 8; stroke-linejoin: round; }
+      .textbar { fill: #ffffff; opacity: 0.9; }
+    </style>
+  </defs>
+
+  <rect x="52" y="70" width="120" height="112" rx="18" class="card-1 stroke"/>
+  <rect x="82" y="54" width="120" height="112" rx="18" class="card-2 stroke"/>
+  <rect x="112" y="38" width="92" height="112" rx="18" class="card-3 stroke"/>
+
+  <rect x="126" y="28" width="42" height="18" rx="9" class="tab"/>
+  <rect x="68" y="96" width="56" height="10" rx="5" class="textbar"/>
+  <rect x="68" y="116" width="82" height="10" rx="5" class="textbar"/>
+  <rect x="98" y="80" width="56" height="10" rx="5" class="textbar"/>
+  <rect x="98" y="100" width="82" height="10" rx="5" class="textbar"/>
+  <rect x="128" y="64" width="42" height="10" rx="5" class="textbar"/>
+  <rect x="128" y="84" width="54" height="10" rx="5" class="textbar"/>
+</svg>
+
