@@ -33,6 +33,12 @@
 document.addEventListener('DOMContentLoaded', function () {
 	const downloadButton = document.getElementById('download-failures-btn');
 	if (!downloadButton || downloadButton.disabled) {
+		// Continue to set up push button even if download is disabled
+	}
+
+	const pushButton = document.getElementById('push-failures-btn');
+	if (!pushButton || pushButton.disabled) {
+		// Push button may be disabled if no feedback URL
 		return;
 	}
 
@@ -43,7 +49,8 @@ document.addEventListener('DOMContentLoaded', function () {
 	const selectedPlanId = selectedPlanIdNode ? JSON.parse(selectedPlanIdNode.textContent || '""') : '';
 	const selectedExecutionId = selectedExecutionIdNode ? JSON.parse(selectedExecutionIdNode.textContent || '""') : '';
 
-	downloadButton.addEventListener('click', function () {
+	if (downloadButton && !downloadButton.disabled) {
+		downloadButton.addEventListener('click', function () {
 		if (!selectedExecutionId) {
 			return;
 		}
@@ -53,7 +60,57 @@ document.addEventListener('DOMContentLoaded', function () {
 		params.set('execution_id', selectedExecutionId);
 		window.location.href = '/reports/download-failures?' + params.toString();
 	});
+	}
+
+	pushButton.addEventListener('click', function () {
+		if (!selectedExecutionId) {
+			alert('Please select an execution');
+			return;
+		}
+		pushButton.disabled = true;
+		const originalText = pushButton.textContent;
+		pushButton.textContent = 'Posting...';
+
+		const params = new URLSearchParams();
+		if (selectedBranch) params.set('branch', selectedBranch);
+		if (selectedPlanId) params.set('plan_id', selectedPlanId);
+
+		fetch('/api/execution/' + encodeURIComponent(selectedExecutionId) + '/push-feedback?' + params.toString(), {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' }
+		})
+			.then(r => {
+				if (!r.ok) return r.json().then(data => Promise.reject(data));
+				return r.json();
+			})
+			.then(data => {
+				pushButton.textContent = '✓ Posted to GitHub';
+				const statusDiv = document.getElementById('feedback-status');
+				if (statusDiv) {
+					statusDiv.innerHTML = '<p>✓ Feedback posted: <a href="' + escapeHtml(data.feedback_comment_url) +
+						'" target="_blank" rel="noopener noreferrer">View comment</a></p>';
+					statusDiv.style.display = 'block';
+				}
+				setTimeout(() => {
+					pushButton.textContent = originalText;
+					pushButton.disabled = false;
+				}, 3000);
+			})
+			.catch(err => {
+				alert('Failed to post feedback: ' + (err.error || err.message || 'Unknown error'));
+				pushButton.textContent = originalText;
+				pushButton.disabled = false;
+			});
+	});
 });
+
+function escapeHtml(text) {
+	return String(text)
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;');
+}
 </script>
 {% endblock %}
 

@@ -273,3 +273,42 @@ class PlansRepo(_GitHubConnector):
             branch=self.branch,
         )
 
+
+# ---------------------------------------------------------------------------
+# Issues repo  (feedback comments go here, write-only)
+# ---------------------------------------------------------------------------
+
+class IssuesRepo(_GitHubConnector):
+    """Write-only connector for posting feedback comments to issues/PRs.
+
+    Example
+    -------
+    >>> issues = IssuesRepo(token="ghp_…", repo_name="myorg/myproject")
+    >>> comment_url = issues.post_comment(42, "This is a test failure report…")
+    >>> print(comment_url)
+    https://github.com/myorg/myproject/issues/42#issuecomment-1234567890
+    """
+
+    def post_comment(self, issue_number: int, body: str) -> str:
+        """Post a comment on an issue or pull request.
+
+        Parameters
+        ----------
+        issue_number:
+            GitHub issue or pull request number (e.g., 42).
+        body:
+            Comment text (markdown-formatted).
+
+        Returns
+        -------
+        str
+            URL to the created comment.
+
+        Raises
+        ------
+        GithubException
+            Re-raised for any API error.
+        """
+        issue = self._repo.get_issue(issue_number)
+        comment = issue.create_comment(body)
+        return comment.html_url

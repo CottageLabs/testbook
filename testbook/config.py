@@ -112,7 +112,8 @@ def get_source_repo_config() -> dict[str, Any]:
     issues_section = cfg.get("issues_repo", {})
     issues_repo_name = issues_section.get("repo_name", repo_name)
     issues_default_branch = issues_section.get("default_branch", section.get("default_branch", "main"))
-    issues_token = os.environ.get("TESTBOOK_ISSUES_TOKEN", "") or issues_section.get("github_token", "") or token
+    _raw_issues_token = os.environ.get("TESTBOOK_ISSUES_TOKEN", "") or issues_section.get("github_token", "")
+    issues_token = _raw_issues_token if (_raw_issues_token and "PLACEHOLDER" not in _raw_issues_token) else token
 
     return {
         "repo_name": repo_name,

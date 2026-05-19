@@ -26,7 +26,14 @@ plans_repo:
   github_token: ""
 
 # Optional: repository to use when storing execution feedback in GitHub issues/PRs.
-# If omitted, Testbook falls back to source_repo settings.
+# The repo_name here is informational only — when pushing failure reports, Testbook
+# always posts to the repository identified in the execution's feedback URL.
+# The github_token MUST have "Issues: Read and Write" permission for any repository
+# you intend to post feedback to.
+# If omitted, Testbook falls back to the source_repo github_token.
+# NOTE: If you use a fine-grained PAT for source_repo that is scoped to only the
+# source repository, you must supply a separate token here with access to the
+# issues/feedback repository.
 issues_repo:
   repo_name: "myorg/myproject"
   default_branch: "main"

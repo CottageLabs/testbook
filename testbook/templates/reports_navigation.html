@@ -39,8 +39,22 @@
         title="Download test failures as markdown"
         {% if not selected_execution_id %}disabled{% endif %}
     >Download test failures as markdown</button>
-    <button type="button" class="btn btn-sm" disabled title="Push test failures to GitHub">Push test failures to GitHub</button>
+    <button
+        id="push-failures-btn"
+        type="button"
+        class="btn btn-sm"
+        title="Push test failures to GitHub as a comment on the configured issue/PR"
+        {% if not selected_execution_id or not selected_execution_feedback_url %}disabled{% endif %}
+    >Push test failures to GitHub</button>
 </div>
+
+{% if selected_execution_id and selected_execution_feedback_url %}
+<div id="feedback-status" class="muted" style="margin-top: 8px; font-size: 0.9em;">
+    {% if feedback_comment_url %}
+    <p>✓ Feedback posted: <a href="{{ feedback_comment_url }}" target="_blank" rel="noopener noreferrer">View comment</a></p>
+    {% endif %}
+</div>
+{% endif %}
 
 <p id="execution-feedback-row" class="muted"{% if not selected_execution_feedback_url %} hidden{% endif %}>
     Feedback: <a id="execution-feedback-link" href="{{ selected_execution_feedback_url or '#' }}" target="_blank" rel="noopener noreferrer">{{ selected_execution_feedback_url }}</a>

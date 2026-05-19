@@ -1109,6 +1109,129 @@ class TestExecutionsRoute(unittest.TestCase):
         self.assertIn(b"        - Username input remains visible (PASS)", response.data)
         self.assertNotIn(b"Passing login flow", response.data)
 
+    def test_parse_github_issue_url_extracts_repo_and_issue(self):
+        from testbook.web import _parse_github_issue_url
+
+        result = _parse_github_issue_url("https://github.com/myorg/myrepo/issues/42")
+        self.assertEqual(result, ("myorg/myrepo", 42))
+
+        result = _parse_github_issue_url("https://github.com/myorg/myrepo/pull/99")
+        self.assertEqual(result, ("myorg/myrepo", 99))
+
+    def test_parse_github_issue_url_rejects_invalid_urls(self):
+        from testbook.web import _parse_github_issue_url
+
+        self.assertIsNone(_parse_github_issue_url("https://gitlab.com/org/repo/issues/42"))
+        self.assertIsNone(_parse_github_issue_url("https://github.com/org/repo"))
+        self.assertIsNone(_parse_github_issue_url("not-a-url"))
+        self.assertIsNone(_parse_github_issue_url(""))
+
+    def test_push_execution_feedback_stores_comment_url(self):
+        from testbook.github_connector import IssuesRepo
+
+        cfg_patcher = patch(
+            "testbook.web.get_source_repo_config",
+            return_value={
+                "repo_name": "org/repo",
+                "default_branch": "main",
+                "tests_path": "testbook",
+                "github_token": "tok",
+                "issues_repo": {
+                    "repo_name": "org/repo",
+                    "github_token": "tok",
+                }
+            },
+        )
+        cfg_patcher.start()
+
+        plan_test = SimpleNamespace(
+            id=101,
+            stable_id="auth-login-001",
+            title="Valid Login",
+            context={},
+            setup_items=[],
+            steps=[
+                SimpleNamespace(
+                    order_index=0,
+                    text="Enter credentials",
+                    path="/login",
+                    resource="",
+                    results=[SimpleNamespace(order_index=0, text="User is logged in")],
+                )
+            ],
+            testset=SimpleNamespace(name="Login", suite=SimpleNamespace(name="Auth")),
+        )
+        plan_item = SimpleNamespace(order_index=0, test=plan_test)
+        plan = SimpleNamespace(id=7, plan_items=[plan_item])
+
+        execution = SimpleNamespace(
+            id=9,
+            title="Cycle 1",
+            branch="main",
+            repo_name="org/repo",
+            feedback_url="https://github.com/org/repo/issues/42",
+            test_plan_id=7,
+            execution_tests=[
+                SimpleNamespace(
+                    id=201,
+                    source_test_stable_id="auth-1",
+                    source_suite_name="Auth",
+                    source_testset_name="Login",
+                    title="Failed login validation",
+                    context={},
+                    setup=[],
+                    order_index=0,
+                    status="fail",
+                    comment="",
+                    steps=[
+                        SimpleNamespace(
+                            order_index=0,
+                            id=401,
+                            text="Submit credentials",
+                            comment="",
+                            results=[
+                                SimpleNamespace(
+                                    order_index=0,
+                                    status="fail",
+                                    text="Login succeeds",
+                                    comment="",
+                                )
+                            ],
+                        )
+                    ],
+                )
+            ],
+        )
+
+        session_instance = MagicMock()
+        executions_query = MagicMock()
+        executions_query.options.return_value.filter_by.return_value.first.return_value = execution
+        session_instance.query.return_value = executions_query
+        session_instance.commit = MagicMock()
+        session_instance.close = MagicMock()
+        self.session_mock_obj.return_value = session_instance
+
+        with patch(
+            "testbook.web.IssuesRepo"
+        ) as mock_issues_repo_class:
+            mock_issues_repo = MagicMock()
+            mock_issues_repo_class.return_value = mock_issues_repo
+            mock_issues_repo.post_comment.return_value = "https://github.com/org/repo/issues/42#issuecomment-1234567890"
+
+            response = self.client.post(
+                "/api/execution/9/push-feedback?branch=main&plan_id=7",
+                headers={"Content-Type": "application/json"},
+            )
+
+            self.assertEqual(response.status_code, 200)
+            data = response.get_json()
+            self.assertEqual(data["id"], 9)
+            self.assertEqual(data["feedback_url"], "https://github.com/org/repo/issues/42")
+            self.assertEqual(data["feedback_comment_url"], "https://github.com/org/repo/issues/42#issuecomment-1234567890")
+            mock_issues_repo.post_comment.assert_called_once()
+        
+        cfg_patcher.stop()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -5,7 +5,7 @@ from urllib.parse import quote, urlparse
 
 from testbook.config import ConfigurationError, get_source_repo_config, get_testbook_base_url
 from testbook.database import get_session, init_db, sync_from_source_repo
-from testbook.github_connector import SourceRepo
+from testbook.github_connector import SourceRepo, IssuesRepo
 from testbook.models import (
     BranchSyncState,
     ExecutionResult,
@@ -460,6 +460,94 @@ def _execution_has_failed_results(execution_test: ExecutionTest) -> bool:
             if _text_value(getattr(result, "status", "pending"), "pending") == "fail":
                 return True
     return False
+
+
+def _parse_github_issue_url(url: str) -> tuple[str, int] | None:
+    """Extract repo_name and issue_number from GitHub issue/PR URL.
+
+    Examples:
+        https://github.com/myorg/myrepo/issues/42 -> ('myorg/myrepo', 42)
+        https://github.com/myorg/myrepo/pull/99 -> ('myorg/myrepo', 99)
+
+    Returns:
+        (repo_name, issue_number) or None if URL doesn't match pattern.
+    """
+    parsed = urlparse(url)
+    if parsed.netloc != "github.com":
+        return None
+    path_parts = parsed.path.strip("/").split("/")
+    if len(path_parts) < 4:
+        return None
+    owner, repo, issue_type, issue_num_str = path_parts[0], path_parts[1], path_parts[2], path_parts[3]
+    if issue_type not in ("issues", "pull"):
+        return None
+    try:
+        issue_num = int(issue_num_str)
+        return (f"{owner}/{repo}", issue_num)
+    except (ValueError, TypeError):
+        return None
+
+
+def _post_feedback_to_github(
+    execution: TestExecution,
+    markdown_report: str,
+    issues_repo_config: dict[str, object],
+) -> str | None:
+    """Post markdown report as comment to GitHub issue/PR.
+
+    Parameters
+    ----------
+    execution:
+        The test execution.
+    markdown_report:
+        The markdown-formatted failure report.
+    issues_repo_config:
+        Config dict with repo_name and github_token for the issues repo.
+
+    Returns
+    -------
+    str | None
+        URL of the created comment, or None if feedback_url is not set/valid.
+
+    Raises
+    ------
+    ValueError
+        If feedback_url is invalid or GitHub token is missing.
+    GithubException
+        Re-raised for any GitHub API error.
+    """
+    feedback_url = _text_value(getattr(execution, "feedback_url", ""), "")
+    if not feedback_url:
+        return None
+
+    parsed = _parse_github_issue_url(feedback_url)
+    if parsed is None:
+        return None
+
+    # repo_name and issue_number come directly from the feedback URL —
+    # we always post to the repo the issue actually lives in, regardless of config.
+    # The issues_repo config only supplies the auth token.
+    repo_name, issue_number = parsed
+    issues_token = _text_value(issues_repo_config.get("github_token", ""), "")
+    if not issues_token:
+        raise ValueError(
+            "No GitHub token configured for posting feedback. "
+            "Set issues_repo.github_token in config.yml or the TESTBOOK_ISSUES_TOKEN "
+            "environment variable. The token must have Issues: Read and Write access "
+            f"for the repository '{repo_name}'."
+        )
+
+    try:
+        issues_repo = IssuesRepo(token=issues_token, repo_name=repo_name)
+        comment_url = issues_repo.post_comment(issue_number, markdown_report)
+        return comment_url
+    except Exception as exc:
+        raise ValueError(
+            f"Failed to post comment to GitHub repository '{repo_name}' "
+            f"issue/PR #{issue_number}. "
+            "Check that your token has 'Issues: Read and Write' permission for "
+            f"this repository. GitHub error: {exc}"
+        )
 
 
 def _step_has_issues(step: ExecutionStep) -> bool:
@@ -1125,6 +1213,7 @@ def create_app() -> Flask:
                 selected_execution_id=_id_value(getattr(selected_execution, "id", ""), "") if selected_execution else "",
                 selected_execution_title=_text_value(getattr(selected_execution, "title", ""), ""),
                 selected_execution_feedback_url=_text_value(getattr(selected_execution, "feedback_url", ""), ""),
+                feedback_comment_url=_text_value(getattr(selected_execution, "feedback_comment_url", ""), "") if selected_execution else "",
                 selected_plan_id=_id_value(getattr(selected_plan, "id", ""), "") if selected_plan else "",
                 selected_plan_title=_text_value(getattr(selected_plan, "title", ""), ""),
                 active_plan_id=_id_value(getattr(selected_plan, "id", ""), "") if selected_plan else "",
@@ -1682,6 +1771,62 @@ def create_app() -> Flask:
             })
         except Exception as exc:
             return jsonify({"error": str(exc)}), 500
+        finally:
+            session.close()
+
+    @app.post("/api/execution/<int:execution_id>/push-feedback")
+    def push_execution_feedback(execution_id: int):
+        """Post markdown failure report to GitHub issue/PR as a comment.
+
+        Returns the URL of the created comment.
+        Also stores the comment URL in the execution's feedback_comment_url field.
+        """
+        session = get_session()
+        try:
+            cfg = get_source_repo_config()
+            selected_branch = request.args.get("branch", cfg["default_branch"])
+            selected_plan_id_raw = request.args.get("plan_id", "").strip()
+
+            execution = (
+                session.query(TestExecution)
+                .options(
+                    joinedload(TestExecution.execution_tests)
+                    .joinedload(ExecutionTest.steps)
+                    .joinedload(ExecutionStep.results)
+                )
+                .filter_by(
+                    id=execution_id,
+                    repo_name=cfg["repo_name"],
+                    branch=selected_branch,
+                )
+                .first()
+            )
+            if execution is None:
+                return jsonify({"error": "Execution not found"}), 404
+
+            if not _text_value(getattr(execution, "feedback_url", ""), ""):
+                return jsonify({"error": "No feedback URL configured for this execution"}), 400
+
+            markdown = _build_failed_tests_markdown(execution, selected_branch, selected_plan_id_raw)
+            try:
+                comment_url = _post_feedback_to_github(execution, markdown, cfg.get("issues_repo", {}))
+                if comment_url is None:
+                    return jsonify({"error": "Could not parse feedback URL"}), 400
+
+                execution.feedback_comment_url = comment_url
+                execution.updated_at = datetime.now(timezone.utc)
+                session.commit()
+
+                return jsonify({
+                    "id": execution.id,
+                    "feedback_url": execution.feedback_url,
+                    "feedback_comment_url": execution.feedback_comment_url,
+                })
+            except ValueError as exc:
+                return jsonify({"error": str(exc)}), 400
+
+        except Exception as exc:
+            return jsonify({"error": f"Error posting feedback: {str(exc)}"}), 500
         finally:
             session.close()
 
